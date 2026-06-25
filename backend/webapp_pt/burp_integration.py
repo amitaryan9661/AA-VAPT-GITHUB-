@@ -111,19 +111,22 @@ def set_api_key(api_key: str):
 # ─────────────────────────────────────────────
 
 def start_scan_pro(target_url: str, scan_type: str = "crawl_and_audit",
-                   scope_urls: list = None) -> dict:
+                   scope_urls: list = None, username: str = "", password: str = "") -> dict:
     """
     Start a Burp Pro scan via REST API.
-    scan_type: 'crawl_and_audit' | 'audit_selected_items' | 'crawl'
+    scan_type: a Burp scan-configuration NAME (e.g. 'Crawl and audit - Lightweight').
+    username/password: optional — enables AUTHENTICATED scanning (application_logins).
     """
     if not BURP_PRO_API_KEY:
         return {"error": "Burp Pro API key not configured. Call /api/burp/set-api-key first."}
     try:
         import requests
         payload = {
-            "scan_configurations": [{"name": scan_type}],
-            "target_url": target_url,
+            "scan_configurations": [{"name": scan_type, "type": "NamedConfiguration"}],
+            "urls": [target_url],
         }
+        if username and password:
+            payload["application_logins"] = [{"username": username, "password": password}]
         if scope_urls:
             payload["scope"] = {
                 "include": [{"rule": url, "type": "SimpleScopeRule"} for url in scope_urls]
@@ -356,3 +359,102 @@ def validate_scan_permission(permissions: dict, target_url: str) -> dict:
         "message": "Permission gate passed — scanning authorized",
         "timestamp": time.time(),
     }
+
+
+# ═════════════════════════════════════════════════════════════════
+#  JOB ORCHESTRATOR — automated Burp Pro scan (start → poll → fetch)
+#  Returns findings in the UNIFIED shape used by the Attack Flow:
+#    {source, severity, name, location, detail, stage}
+#  Used by BOTH the dedicated Burp panel and the Attack Flow.
+# ═════════════════════════════════════════════════════════════════
+BURP_JOBS: dict = {}
+_BURP_DONE = {"succeeded", "paused", "failed", "cancelled", "completed", "abandoned"}
+
+
+def _burp_to_unified(issues: list) -> list:
+    """Burp issue dicts -> unified finding shape (stage 'vuln')."""
+    out = []
+    for i in (issues or []):
+        sev = (i.get("severity") or "info").lower()
+        if sev in ("information", "informational"):
+            sev = "info"
+        conf = i.get("confidence", "")
+        desc = (i.get("description") or "")[:240]
+        out.append({
+            "source": "burp",
+            "severity": sev,
+            "name": i.get("name", "Burp issue"),
+            "location": i.get("path", "") or i.get("origin", ""),
+            "detail": ((conf + " · ") if conf else "") + desc,
+            "stage": "vuln",
+        })
+    return out
+
+
+def start_burp_job(target_url: str, scan_type: str = "crawl_and_audit",
+                   username: str = "", password: str = "") -> dict:
+    """Start an automated Burp Pro scan job. Needs Burp Pro + API key. Returns {ok, job_id}.
+    username/password optional -> authenticated scan."""
+    import threading, uuid
+    if not BURP_PRO_API_KEY:
+        return {"ok": False, "error": "Burp Pro API key not set. (Pro only — for Community use XML import.)"}
+    job_id = uuid.uuid4().hex[:12]
+    BURP_JOBS[job_id] = {"job_id": job_id, "target": target_url, "scan_type": scan_type,
+                         "authenticated": bool(username and password),
+                         "state": "running", "started": time.time(),
+                         "status": "starting", "issue_count": 0, "findings": []}
+    threading.Thread(target=_burp_worker, args=(job_id, target_url, scan_type, username, password), daemon=True).start()
+    return {"ok": True, "job_id": job_id}
+
+
+def _burp_worker(job_id: str, target_url: str, scan_type: str, username: str = "", password: str = ""):
+    job = BURP_JOBS.get(job_id)
+    if not job:
+        return
+    try:
+        res = start_scan_pro(target_url, scan_type, scope_urls=[target_url],
+                             username=username, password=password)
+        if "error" in res:
+            job["state"] = "error"; job["error"] = res["error"]; return
+        scan_id = res.get("scan_id"); job["scan_id"] = scan_id
+        deadline = time.time() + 1800  # 30-min cap
+        while time.time() < deadline:
+            st = get_scan_status_pro(scan_id)
+            if "error" not in st:
+                job["status"] = st.get("status", "running")
+                job["issue_count"] = st.get("issue_count", 0)
+                if str(st.get("status", "")).lower() in _BURP_DONE:
+                    break
+            time.sleep(5)
+        job["findings"] = _burp_to_unified(get_scan_issues_pro(scan_id))
+        job["issue_count"] = len(job["findings"])
+        job["state"] = "done"; job["duration"] = round(time.time() - job["started"], 1)
+    except Exception as e:
+        job["state"] = "error"; job["error"] = str(e)[:300]
+
+
+def get_burp_job(job_id: str) -> dict:
+    return BURP_JOBS.get(job_id)
+
+
+def import_burp_xml_unified(xml_content: str) -> dict:
+    """Community path: parse uploaded Burp XML export -> unified findings + raw summary."""
+    try:
+        data = import_burp_xml(xml_content)
+    except Exception as e:
+        return {"ok": False, "error": "XML parse failed: " + str(e)[:200]}
+    issues = data.get("issues", []) if isinstance(data, dict) else []
+    return {"ok": True, "findings": _burp_to_unified(issues),
+            "requests_found": data.get("requests_found", 0),
+            "issues_found": data.get("issues_found", len(issues))}
+
+
+def burp_available() -> bool:
+    """True if Burp Pro REST API is reachable + key set (for Attack-Flow auto-include)."""
+    if not BURP_PRO_API_KEY:
+        return False
+    try:
+        chk = _check_burp_pro_api()
+        return bool(chk.get("available"))
+    except Exception:
+        return False

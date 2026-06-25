@@ -15,9 +15,14 @@
   --accent:#00879b;--accent2:#0a7ea4;
   --green:#1a7f37;--red:#cf222e;--yellow:#9a6700;--orange:#bc4c00;
   --critical:#c0392b;--high:#bc4c00;--medium:#b8860b;--low:#4a7c1f;--info:#00879b;
-  --font:'Segoe UI',system-ui,sans-serif;
+  --font:Arial,'Helvetica Neue',Helvetica,'Segoe UI',sans-serif;
 }
-body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+html.dark{
+  --bg:#0a0e1a;--bg2:#111827;--bg3:#1e293b;--bg4:#0f172a;
+  --border:#1e293b;--border2:#334155;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:12px;font-weight:400;height:100vh;overflow:hidden;display:flex;flex-direction:column}
 button{cursor:pointer;border:none;outline:none;font-family:inherit}
 input,textarea,select{font-family:inherit;background:var(--bg3);color:var(--text);border:1px solid var(--border2);border-radius:6px;padding:8px 12px;font-size:13px;outline:none}
 input:focus,textarea:focus,select:focus{border-color:var(--accent)}
@@ -49,7 +54,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 
 /* ═══════════════ LAYOUT ═══════════════ */
 .main{display:flex;flex:1;overflow:hidden}
-.sidebar{width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.sidebar{width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;overflow-x:hidden}
 .content{flex:1;overflow:hidden;display:flex;flex-direction:column;position:relative}
 
 /* ═══════════════ SIDEBAR ═══════════════ */
@@ -275,6 +280,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent)}
   </script>
 </head>
 <body>
+<script>/* shared theme — dark by default, follows nessus Settings choice */(function(){try{var t=localStorage.getItem('aa_theme');if(t!=='light')document.documentElement.classList.add('dark');}catch(e){}})();</script>
 
 <!-- TOPBAR -->
 <div class="topbar">
@@ -736,7 +742,43 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent)}
         <button class="btn btn-primary btn-sm" onclick="renderRecon()">↻ Commands</button>
       </div>
       <div style="font-size:11px;color:var(--text3);margin:-4px 0 12px">🚀 <b>Run Full Attack</b> executes the real tools on your machine (where the backend runs) and <b>merges everything</b> into the stage-grouped results below. Wappalyzer/webanalyze handle tech detection. Only in-scope targets you're authorised to test.</div>
+
+      <!-- ══ Burp Suite integration (Pro auto + Community XML import) ══ -->
+      <div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;background:var(--bg2)">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <b style="font-size:12px">🐝 Burp Suite</b>
+          <span id="burp-detect-badge" style="font-size:10px;border:1px solid var(--border);border-radius:10px;padding:2px 8px;color:var(--text3)">not checked</span>
+          <button class="btn btn-sm" style="font-size:10px" onclick="burpDetect()">↻ Detect</button>
+          <label style="font-size:11px;color:var(--text3);margin-left:auto;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" id="burp-include-flow" onchange="_burpSaveSettings()"> Include Burp audit in Run Full Attack</label>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <input id="burp-api-key" type="password" spellcheck="false" oninput="_burpSaveSettings()" placeholder="Burp Pro API key (Pro only)" style="flex:1;min-width:150px;background:var(--bg4);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;padding:6px"/>
+          <button class="btn btn-sm" onclick="burpSetKey()">Set key</button>
+          <select id="burp-scan-type" onchange="_burpSaveSettings()" title="Burp scan configuration" style="background:var(--bg4);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;padding:6px">
+            <option value="Crawl and audit - Lightweight">Crawl+Audit — Lightweight (fast)</option>
+            <option value="Crawl and audit - Balanced" selected>Crawl+Audit — Balanced</option>
+            <option value="Crawl and audit - Deep">Crawl+Audit — Deep (thorough)</option>
+            <option value="Crawl strategy - Fastest">Crawl only — Fastest</option>
+            <option value="Audit checks - All except time-based detection methods">Audit — All checks</option>
+            <option value="Audit checks - Critical issues only">Audit — Critical only</option>
+          </select>
+          <button id="burp-run-btn" class="btn btn-sm" style="background:#e8732a;color:#fff;border-color:#e8732a;font-weight:700" onclick="burpRunScan()">🐝 Run Burp Audit</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">
+          <span style="font-size:10px;color:var(--text3)">🔑 Authenticated scan (optional):</span>
+          <input id="burp-user" oninput="_burpSaveSettings()" spellcheck="false" autocomplete="off" placeholder="username" style="width:120px;background:var(--bg4);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;padding:6px"/>
+          <input id="burp-pass" type="password" oninput="_burpSaveSettings()" autocomplete="off" placeholder="password" style="width:120px;background:var(--bg4);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;padding:6px"/>
+          <span style="font-size:10px;color:var(--text3)">Burp logs in &amp; scans the authenticated area</span>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:6px">No Burp Pro? <a href="#" onclick="document.getElementById('burp-xml-row').style.display='block';return false" style="color:var(--accent)">Import a Burp XML export (Community)</a></div>
+        <div id="burp-xml-row" style="display:none;margin-top:6px">
+          <textarea id="burp-xml-ta" spellcheck="false" placeholder="Paste Burp Suite XML export here…" style="width:100%;height:80px;background:var(--bg4);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:monospace;font-size:11px;padding:6px"></textarea>
+          <button class="btn btn-sm" style="margin-top:4px" onclick="burpImportXml()">📥 Import + merge</button>
+        </div>
+      </div>
+
       <div id="recon-scan-results" style="margin-bottom:14px"></div>
+      <div id="burp-results" style="margin-bottom:14px"></div>
       <div id="recon-body"></div>
     </div>
 
@@ -1431,6 +1473,9 @@ async function webptRunScan(){
     if(!r.ok){ var e=await r.json().catch(function(){return{};}); throw new Error(e.detail||('HTTP '+r.status)); }
     var d=await r.json();
     _webptPoll(d.job_id);
+    // Optionally also kick off a Burp Pro audit in parallel (results merge below)
+    var bc=document.getElementById('burp-include-flow');
+    if(bc && bc.checked && typeof burpRunScan==='function'){ burpRunScan(); }
   }catch(err){
     var msg=(err.message||String(err));
     var hint = msg==='__STALE__'
@@ -1492,6 +1537,132 @@ function _scanTable(rows, SEVC){
       +'</tr>';
   });
   return h+'</tbody></table>';
+}
+
+// ═══════════ Burp Suite integration (Pro auto-scan + Community XML import) ═══════════
+var _burpTimer=null;
+async function burpDetect(){
+  var b=document.getElementById('burp-detect-badge'); if(b) b.textContent='checking…';
+  try{
+    var r=await fetch(API+'/api/burp/detect'); var d=await r.json();
+    var mode=(d.mode||'none'); var on=(mode && mode!=='none' && mode!=='unavailable');
+    var col=on?'#1a7f37':'#9a6700';
+    if(b){ b.textContent=(d.message?String(d.message).slice(0,42):mode); b.style.color=col; b.style.borderColor=col; }
+  }catch(e){ if(b){ b.textContent='backend offline'; b.style.color='#cf222e'; b.style.borderColor='#cf222e'; } }
+}
+async function burpSetKey(){
+  var k=((document.getElementById('burp-api-key')||{}).value||'').trim();
+  if(!k){ alert('Paste your Burp Pro API key first.'); return; }
+  try{
+    var r=await fetch(API+'/api/burp/set-api-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:k})});
+    if(r.ok){ burpDetect(); alert('✅ Burp Pro API key set.'); } else { alert('Failed to set key.'); }
+  }catch(e){ alert('Backend offline?'); }
+}
+async function burpRunScan(){
+  var t=_getTarget()||((document.getElementById('recon-target')||{}).value||'').trim();
+  var out=document.getElementById('burp-results'); var btn=document.getElementById('burp-run-btn');
+  if(!t){ if(out) out.innerHTML='<div style="color:#cf222e;padding:8px">⚠️ Enter a target first.</div>'; return; }
+  var st=((document.getElementById('burp-scan-type')||{}).value)||'Crawl and audit - Balanced';
+  var bu=((document.getElementById('burp-user')||{}).value||'').trim();
+  var bp=((document.getElementById('burp-pass')||{}).value||'');
+  var authNote=(bu&&bp)?' (authenticated as '+_esc2(bu)+')':'';
+  if(out) out.innerHTML='<div style="color:var(--text3);padding:10px">🐝 Starting Burp scan on <b>'+_esc2(t)+'</b>'+authNote+' … (Burp Pro must be running with REST API + key). This can take a while.</div>';
+  if(btn){ btn.disabled=true; btn.textContent='🐝 Scanning…'; }
+  try{
+    var r=await fetch(API+'/api/burp/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_url:t,scan_type:st,username:bu,password:bp})});
+    var d=await r.json();
+    if(!r.ok||d.ok===false){ throw new Error(d.detail||d.error||('HTTP '+r.status)); }
+    _burpPoll(d.job_id);
+  }catch(err){
+    if(out) out.innerHTML='<div style="color:#cf222e;padding:10px">❌ '+_esc2(err.message||String(err))+'<br><span style="color:var(--text3)">Burp Pro + API key chahiye. Community ke liye niche XML import use karo.</span></div>';
+    if(btn){ btn.disabled=false; btn.textContent='🐝 Run Burp Audit'; }
+  }
+}
+function _burpPoll(jobId){
+  if(_burpTimer) clearTimeout(_burpTimer);
+  fetch(API+'/api/burp/run/'+jobId).then(function(r){return r.json();}).then(function(j){
+    _burpRender(j);
+    if(j.state==='running'){ _burpTimer=setTimeout(function(){_burpPoll(jobId);},5000); }
+    else { var b=document.getElementById('burp-run-btn'); if(b){ b.disabled=false; b.textContent='🐝 Run Burp Audit'; } }
+  }).catch(function(){ var b=document.getElementById('burp-run-btn'); if(b){ b.disabled=false; b.textContent='🐝 Run Burp Audit'; } });
+}
+function _burpRender(j){
+  var out=document.getElementById('burp-results'); if(!out) return;
+  var SEVC={critical:'#ff5c8a',high:'#cf222e',medium:'#bc4c00',low:'#1a7f37',info:'#0a7ea4'};
+  var m=j.findings||[];
+  var h='<div style="font-size:13px;font-weight:700;margin:6px 0">🐝 Burp Suite audit'+(j.status?(' · '+_esc2(j.status)):'')+(j.state==='running'?' · ⏳ live':'')+' — '+m.length+' issue(s)'+(j.duration?(' · '+j.duration+'s'):'')+'</div>';
+  if(j.error){ h+='<div style="color:#cf222e;padding:6px">'+_esc2(j.error)+'</div>'; }
+  if(j.state==='running'&&!m.length){ h+='<div style="color:var(--text3);padding:6px">⏳ Burp scanning… issues appear as found.</div>'; out.innerHTML=h; return; }
+  if(!m.length){ h+='<div style="color:var(--text3);padding:6px">No issues'+(j.state==='done'?' (scan complete).':'…')+'</div>'; out.innerHTML=h; return; }
+  if(j.state==='done'){
+    h+='<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0 8px">'
+      +'<button class="btn btn-sm" onclick="burpAiTriage()" style="font-size:11px">🤖 AI Triage</button>'
+      +'<span id="burp-mem-note" style="font-size:10px;color:var(--text3)"></span></div>';
+  }
+  h+=_scanTable(m, SEVC);
+  h+='<div id="burp-triage-out" style="margin-top:8px"></div>';
+  out.innerHTML=h;
+  // merged into the Attack Flow results region (shown right under the tool-runner findings)
+  window._burpFindings=m;
+  if(j.state==='done' && !j._saved){ j._saved=true; _burpSaveMemory(m); }
+}
+async function _burpSaveMemory(m){
+  if(!m||!m.length) return;
+  var note=document.getElementById('burp-mem-note');
+  try{
+    var t=_getTarget()||'';
+    var r=await fetch(API+'/api/burp/to-memory',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target:t,findings:m})});
+    var d=await r.json();
+    if(note) note.textContent='💾 '+(d.saved||0)+' saved to memory (AI can reference these)';
+  }catch(e){ if(note) note.textContent=''; }
+}
+async function burpAiTriage(){
+  var m=window._burpFindings||[]; var out=document.getElementById('burp-triage-out');
+  if(!m.length){ return; }
+  if(out) out.innerHTML='<div style="color:var(--text3);padding:6px">🤖 AI triaging '+m.length+' Burp issue(s)… (local DeepSeek)</div>';
+  var summary=m.slice(0,40).map(function(f){return '- ['+(f.severity||'info')+'] '+(f.name||'')+' @ '+(f.location||'');}).join('\n');
+  var q='You are a senior pentester. Triage these Burp Suite findings: flag likely false positives, re-rank severity, and give 1-line remediation each. Findings:\n'+summary;
+  try{
+    var r=await fetch(API+'/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,target:_getTarget()||'',findings:[]})});
+    var d=await r.json();
+    var ans=d.answer||d.response||'';
+    if(out){
+      if(ans){ out.innerHTML='<div style="border:1px solid var(--border);border-radius:8px;padding:10px;background:var(--bg2);font-size:12px;white-space:pre-wrap">🤖 <b>AI Triage</b>\n'+_esc2(ans)+'</div>'; }
+      else { out.innerHTML='<div style="color:var(--text3);padding:6px">AI did not return an answer (is Ollama running?).</div>'; }
+    }
+  }catch(e){ if(out) out.innerHTML='<div style="color:#cf222e;padding:6px">AI triage failed: '+_esc2(e.message||String(e))+'</div>'; }
+}
+function _burpSaveSettings(){
+  try{
+    var s={key:(document.getElementById('burp-api-key')||{}).value||'',
+           type:(document.getElementById('burp-scan-type')||{}).value||'',
+           user:(document.getElementById('burp-user')||{}).value||'',
+           pass:(document.getElementById('burp-pass')||{}).value||'',
+           inc:!!(document.getElementById('burp-include-flow')||{}).checked};
+    localStorage.setItem('aaBurpCfg', JSON.stringify(s));
+  }catch(e){}
+}
+function _burpLoadSettings(){
+  try{
+    var s=JSON.parse(localStorage.getItem('aaBurpCfg')||'{}');
+    var set=function(id,v){ var el=document.getElementById(id); if(el&&v!=null&&v!=='') el.value=v; };
+    set('burp-api-key',s.key); set('burp-scan-type',s.type); set('burp-user',s.user); set('burp-pass',s.pass);
+    var inc=document.getElementById('burp-include-flow'); if(inc) inc.checked=!!s.inc;
+    // if a saved key exists, push it to backend so scans work without re-Set
+    if(s.key){ fetch(API+'/api/burp/set-api-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:s.key})}).catch(function(){}); }
+  }catch(e){}
+}
+async function burpImportXml(){
+  var x=((document.getElementById('burp-xml-ta')||{}).value||'');
+  if(!x.trim()){ alert('Paste a Burp XML export first.'); return; }
+  var out=document.getElementById('burp-results');
+  if(out) out.innerHTML='<div style="color:var(--text3);padding:8px">📥 Parsing Burp XML…</div>';
+  try{
+    var r=await fetch(API+'/api/burp/import-xml-merge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({xml_content:x})});
+    var d=await r.json();
+    if(!r.ok||d.ok===false){ throw new Error(d.detail||d.error||('HTTP '+r.status)); }
+    _burpRender({state:'done',findings:d.findings||[],status:'XML import',issue_count:(d.findings||[]).length});
+  }catch(err){ if(out) out.innerHTML='<div style="color:#cf222e;padding:8px">❌ '+_esc2(err.message||String(err))+'</div>'; }
 }
 
 // ═══════════════════════════════════════════════
@@ -1722,7 +1893,7 @@ function showPanel(name) {
   if (name === 'oob') renderOOB();
   if (name === 'webtools') renderWebtools();
   if (name === 'plib') renderPayloadLib();
-  if (name === 'recon') renderRecon();
+  if (name === 'recon') { renderRecon(); if(typeof _burpLoadSettings==='function') _burpLoadSettings(); if(typeof burpDetect==='function') burpDetect(); }
   if (name === 'testing') {
     if (state.session && state.currentTest) renderTest(state.currentTest);
   }

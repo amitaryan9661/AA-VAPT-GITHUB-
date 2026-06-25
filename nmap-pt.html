@@ -14,8 +14,13 @@
   --accent:#00879b;--accent2:#0a7ea4;
   --green:#1a7f37;--red:#cf222e;--orange:#bc4c00;--yellow:#9a6700;--blue:#0a7ea4;--purple:#8250df;
 }
+html.dark{
+  --bg:#0d0d0f;--bg2:#111114;--bg3:#18181c;--bg4:#1e1e24;--bg5:#25252c;
+  --border:#2a2a35;--border2:#35354a;
+  --text:#e2e2f0;--text2:#b0b0c8;--text3:#6b6b8a;
+}
 html,body{height:100%;overflow:hidden}
-body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+body{font-family:Arial,'Helvetica Neue',Helvetica,'Segoe UI',sans-serif;font-size:12px;font-weight:400;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
 
 /* ── NAV ── */
 .nav{display:flex;align-items:center;gap:10px;padding:0 16px;height:44px;background:#152a3a;color:#e8eef4;border-bottom:1px solid var(--border);flex-shrink:0}
@@ -212,6 +217,7 @@ pre.term .b{color:#90caf9}
 </style>
 </head>
 <body>
+<script>/* shared theme — dark by default, follows nessus Settings choice */(function(){try{var t=localStorage.getItem('aa_theme');if(t!=='light')document.documentElement.classList.add('dark');}catch(e){}})();</script>
 
 <!-- NAV -->
 <nav class="nav">

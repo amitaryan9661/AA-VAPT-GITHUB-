@@ -868,6 +868,7 @@ from backend.webapp_pt.burp_integration import (
     detect_burp_mode, set_api_key as burp_set_api_key,
     start_scan_pro, get_scan_status_pro, get_scan_issues_pro,
     import_burp_xml, analyze_manual_request, validate_scan_permission,
+    start_burp_job, get_burp_job, import_burp_xml_unified, burp_available,
 )
 from backend.webapp_pt.report_generator import (
     generate_html_report, generate_json_report, generate_markdown_report,
@@ -912,6 +913,13 @@ class BurpXmlRequest(BaseModel):
 class BurpScanRequest(BaseModel):
     target_url: str
     scan_type: Optional[str] = "crawl_and_audit"
+    username: Optional[str] = ""
+    password: Optional[str] = ""
+
+
+class BurpMemoryRequest(BaseModel):
+    target: Optional[str] = ""
+    findings: list = []
 
 
 class CrawlRequest(BaseModel):
@@ -1174,6 +1182,64 @@ async def burp_detect():
 async def burp_set_key(req: BurpApiKeyRequest):
     burp_set_api_key(req.api_key)
     return {"success": True, "message": "Burp Pro API key configured"}
+
+
+@app.get("/api/burp/available")
+async def burp_is_available():
+    """True if Burp Pro REST API + key are ready (used by Attack Flow auto-include)."""
+    return {"available": burp_available()}
+
+
+@app.post("/api/burp/run")
+async def burp_run(req: BurpScanRequest):
+    """Start an AUTOMATED Burp Pro scan job (Pro only). Returns {ok, job_id}."""
+    ok, msg = _tool_runner.validate_target(req.target_url or "") if _tool_runner else (True, "")
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return start_burp_job((req.target_url or "").strip(), req.scan_type or "crawl_and_audit",
+                          username=req.username or "", password=req.password or "")
+
+
+@app.post("/api/burp/to-memory")
+async def burp_to_memory(req: BurpMemoryRequest):
+    """Save Burp findings into ChromaDB memory (so AI can reference / dedupe across scans)."""
+    saved = 0
+    for f in (req.findings or []):
+        try:
+            mem.store_finding(
+                host=f.get("location") or req.target or "",
+                finding_name=f.get("name") or "Burp issue",
+                plugin_id="burp:" + (f.get("name") or "")[:40],
+                severity=(f.get("severity") or "info"),
+                command="Burp Suite scan",
+                raw_output=(f.get("detail") or ""),
+                verdict="confirmed",
+                confidence=80,
+                summary=(f.get("detail") or f.get("name") or ""),
+                indicators=[f.get("source", "burp")],
+            )
+            saved += 1
+        except Exception as e:
+            log.warning("burp memory save failed: %s", e)
+    return {"ok": True, "saved": saved, "stats": mem.get_stats()}
+
+
+@app.get("/api/burp/run/{job_id}")
+async def burp_run_status(job_id: str):
+    """Poll a Burp scan job — returns state, status, issue_count, and unified findings."""
+    job = get_burp_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="job not found")
+    return {"ok": True, "state": job.get("state"), "status": job.get("status"),
+            "issue_count": job.get("issue_count", 0),
+            "findings": job.get("findings", []),
+            "error": job.get("error"), "duration": job.get("duration")}
+
+
+@app.post("/api/burp/import-xml-merge")
+async def burp_import_xml_merge(req: BurpXmlRequest):
+    """Community path: parse a Burp XML export -> unified findings (merge into results)."""
+    return import_burp_xml_unified(req.xml_content or "")
 
 
 @app.post("/api/burp/start-scan")

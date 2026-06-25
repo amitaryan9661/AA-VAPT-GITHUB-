@@ -29,12 +29,12 @@ html.dark{
   --text:#e6edf3;--muted:#8b949e;
 }
 html{height:100%}
-body{background:var(--bg);color:var(--text);font-family:Arial,'Helvetica Neue',Helvetica,'Segoe UI',sans-serif;font-size:12.5px;overflow:hidden;display:flex;flex-direction:column;height:100vh;min-height:0;max-height:100vh;}
+body{background:var(--bg);color:var(--text);font-family:Arial,'Helvetica Neue',Helvetica,'Segoe UI',sans-serif;font-size:12px;font-weight:400;overflow:hidden;display:flex;flex-direction:column;height:100vh;min-height:0;max-height:100vh;}
 .topbar{background:#152a3a;border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;height:50px;gap:20px;position:sticky;top:0;z-index:100}
 .logo{font-size:18px;font-weight:700;color:var(--accent);letter-spacing:2px;white-space:nowrap}
 .logo span{color:var(--green)}
 .nav-tabs{display:flex;gap:2px;margin-left:auto}
-.nav-tab{padding:6px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;color:var(--muted);border:1px solid transparent;transition:.2s}
+.nav-tab{padding:5px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:500;color:var(--muted);border:1px solid transparent;transition:.15s}
 .nav-tab:hover{color:var(--text);border-color:var(--border)}
 .nav-tab.active{background:var(--accent);color:#000;border-color:var(--accent)}
 .page{display:none}.page.active{display:block}
@@ -542,11 +542,11 @@ body { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
   transition:background .15s, color .15s;
   overflow:hidden;
 }
-.nav-tab:hover { background:var(--card); color:var(--text); }
-.nav-tab.active { background:var(--accent); color:#000 !important; }
-body.light-theme .nav-tab.active { color:#fff !important; }
+.nav-tab:hover { background:rgba(127,127,127,.10); color:var(--text); }
+.nav-tab.active { background:rgba(0,135,155,.14); color:var(--accent) !important; border-color:transparent; }
+body.light-theme .nav-tab.active { color:var(--accent) !important; }
 
-.sb-icon { font-size:16px; flex-shrink:0; width:22px; text-align:center; }
+.sb-icon { font-size:13px; flex-shrink:0; width:18px; text-align:center; }
 .sb-label { transition:opacity .15s, width .15s; }
 .sidebar.collapsed .sb-label { opacity:0; width:0; overflow:hidden; }
 
@@ -591,6 +591,28 @@ body.light-theme .nav-tab.active { color:#fff !important; }
 .topbar .proj-none { color:#c7d3df; }
 .topbar a, .topbar .topbar-title { color:#e8eef4; }
 /* status dots keep their own colors (set via background) */
+
+/* ═══════════ Nessus-feel polish: airy spacing, clean tables, subtle depth ═══════════ */
+.section-card{ margin-bottom:18px; }
+.scan-header{ padding:22px 24px; }
+/* subtle card shadows in LIGHT mode only (Nessus-style depth) */
+html:not(.dark) .section-card,
+html:not(.dark) .scan-header,
+html:not(.dark) .issue-header{ box-shadow:0 1px 3px rgba(20,33,61,.07); border-color:#e3e7ec; }
+/* clean, airy tables (named tables only — no global side-effects) */
+.summary-table th,.nmap-table th,.rt-table th,.ipm-preview-table th{
+  text-align:left; font-size:10.5px; font-weight:600; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--muted); padding:8px 14px;
+  border-bottom:1px solid var(--border); background:transparent;
+}
+.summary-table td,.nmap-table td,.rt-table td,.ipm-preview-table td{
+  padding:9px 14px; border-bottom:1px solid var(--border);
+}
+.issue-row:hover{ background:var(--active); }
+/* severity badges as clean Nessus-style pills */
+.sev-badge{ font-weight:600; font-size:12px; padding:5px 13px; border-radius:14px; border-width:1px; }
+/* slightly tighter section titles */
+.section-title{ letter-spacing:.02em; }
 .topbar-right { display:flex; align-items:center; gap:10px; }
 
 /* Project pill in topbar */
@@ -853,8 +875,8 @@ html, body { height:100%; margin:0; padding:0; }
   50%       { box-shadow: inset 2px 0 0 var(--accent), 0 0 12px rgba(88,166,255,0.15); }
 }
 .nav-tab { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-.nav-tab:hover { transform: translateX(4px); }
-.nav-tab.active { animation: nav-active-glow 3s ease-in-out infinite; }
+.nav-tab:hover { transform: none; }
+.nav-tab.active { animation: none; }
 @keyframes finding-in {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -2653,18 +2675,26 @@ function _buildTermReport(log, tabName){
   if(cur) blocks.push(cur);
   var p=[];
   p.push('<!doctype html><html><head><meta charset="utf-8"><title>AA-VAPT Terminal Report</title><style>'
-    +'body{font-family:Segoe UI,system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:24px}'
-    +'h1{font-size:20px;color:#00879b;margin:0 0 4px}.sub{color:var(--muted);font-size:12px;margin-bottom:20px}'
-    +'.tool{border:1px solid var(--border);border-radius:10px;margin:0 0 18px;overflow:hidden}'
-    +'.tool h2{font-size:13px;margin:0;padding:10px 14px;background:var(--panel);color:#1a7f37;border-bottom:1px solid var(--border);font-family:Menlo,Consolas,monospace}'
-    +'.tool h2 .cmd{color:var(--text)}'
-    +'pre.raw{margin:0;padding:12px 14px;background:#152a3a;color:var(--text);font-family:Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;overflow:auto;max-height:480px}'
-    +'.find{margin:0;padding:10px 14px;background:#1a1207;border-top:1px solid var(--border)}'
-    +'.find b{color:#bf8700;font-size:11px;letter-spacing:.5px}'
-    +'.find .hl{display:block;font-family:Menlo,Consolas,monospace;font-size:12px;color:#ffd479;background:#3a2a08;border-left:3px solid #bf8700;padding:3px 8px;margin:5px 0;border-radius:3px;white-space:pre-wrap}'
+    +'*{box-sizing:border-box}'
+    +'body{font-family:Arial,"Helvetica Neue",Helvetica,sans-serif;background:#eef1f5;color:#1f2937;margin:0;padding:0;font-size:13px;line-height:1.55}'
+    +'.rpt-head{background:#152a3a;color:#fff;padding:22px 32px;border-bottom:3px solid #00879b}'
+    +'.rpt-head h1{font-size:21px;margin:0 0 4px;font-weight:600;color:#fff;letter-spacing:.3px}'
+    +'.rpt-head .sub{color:#aebfcf;font-size:12px}'
+    +'.rpt-head .sub b{color:#e8eef4;font-weight:600}'
+    +'.wrap{max-width:1040px;margin:0 auto;padding:26px 32px}'
+    +'.tool{border:1px solid #d8dee6;border-radius:8px;margin:0 0 18px;overflow:hidden;background:#fff;box-shadow:0 1px 3px rgba(20,33,61,.06)}'
+    +'.tool h2{font-size:12.5px;margin:0;padding:10px 14px;background:#f3f6f9;color:#0f5d3a;border-bottom:1px solid #e1e6ec;font-family:Consolas,Menlo,monospace;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}'
+    +'.tool h2 .cmd{color:#243244;font-weight:400}'
+    +'pre.raw{margin:0;padding:13px 16px;background:#0f1b29;color:#d3dfeb;font-family:Consolas,Menlo,monospace;font-size:12px;white-space:pre-wrap;word-break:break-word;overflow:auto;max-height:480px}'
+    +'.find{margin:0;padding:10px 14px;background:#fff8ea;border-top:1px solid #e1e6ec}'
+    +'.find b{color:#9a6700;font-size:10.5px;letter-spacing:.5px;text-transform:uppercase}'
+    +'.find .hl{display:block;font-family:Consolas,Menlo,monospace;font-size:12px;color:#7a4f00;background:#fdeccb;border-left:3px solid #bf8700;padding:4px 9px;margin:5px 0;border-radius:3px;white-space:pre-wrap}'
+    +'.rpt-foot{max-width:1040px;margin:0 auto;padding:8px 32px 30px;color:#8a96a3;font-size:11px}'
+    +'@media print{body{background:#fff}.tool{box-shadow:none}}'
     +'</style></head><body>');
-  p.push('<h1>🛡️ AA-VAPT — Terminal Report</h1>');
-  p.push('<div class="sub">Tab: '+_escH(tabName)+' · '+new Date().toLocaleString()+' · '+blocks.length+' command(s)</div>');
+  p.push('<div class="rpt-head"><h1>🛡️ AA-VAPT — Terminal Report</h1>'
+    +'<div class="sub">Tab: <b>'+_escH(tabName)+'</b> &nbsp;·&nbsp; '+new Date().toLocaleString()+' &nbsp;·&nbsp; <b>'+blocks.length+'</b> command(s)</div></div>');
+  p.push('<div class="wrap">');
   if(!blocks.length){ p.push('<pre class="raw">'+_escH(log)+'</pre>'); }
   for(var b=0;b<blocks.length;b++){
     var blk=blocks[b]; var rawOut=blk.out.join('\n').replace(/\n+$/,'');
@@ -2676,6 +2706,8 @@ function _buildTermReport(log, tabName){
       p.push('</div>'); }
     p.push('</div>');
   }
+  p.push('</div>');
+  p.push('<div class="rpt-foot">Generated by AA-VAPT · Authorized testing only</div>');
   p.push('</body></html>'); return p.join('');
 }
 function termSaveLog(){
@@ -7584,7 +7616,8 @@ function generateReport(){
   const fullHtml=`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>AA-VAPT Report — ${esc(target)}</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{background:var(--bg);color:var(--text);font-family:Arial,'Helvetica Neue',Helvetica,'Segoe UI',sans-serif;font-size:13px}.wrap{max-width:1100px;margin:0 auto;padding:24px}a{color:#00879b}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--panel)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+<style>:root{--bg:#ffffff;--panel:#f7f8fa;--card:#f4f6f9;--inset:#eef1f5;--active:#e6f1f4;--border:#dce0e6;--text:#1f2937;--muted:#5a6470;--accent:#00879b;--green:#1a7f37;--red:#cf222e;--orange:#bc4c00;--purple:#6f42c1;--cyan:#0a7ea4;--critical:#c0392b;--high:#bc4c00;--medium:#b8860b;--low:#2e6fd6;--info:#6a737d;--confirmed:#1a7f37;--fp:#cf222e;--unverified:#9a6700}
+*{margin:0;padding:0;box-sizing:border-box}body{background:var(--bg);color:var(--text);font-family:Arial,'Helvetica Neue',Helvetica,'Segoe UI',sans-serif;font-size:13px}.wrap{max-width:1100px;margin:0 auto;padding:24px}a{color:#00879b}::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:var(--panel)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 /* ── Project Bar ──────────────────────────────────────── */
 .project-bar{display:flex;align-items:center;gap:10px;padding:6px 20px;background:var(--bg);border-bottom:1px solid var(--inset);font-size:12px}
 .project-bar .proj-label{color:var(--muted)}
@@ -14518,6 +14551,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     const html=`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <title>${esc(rawName)} — VAPT Report</title>
 <style>
+:root{--bg:#ffffff;--panel:#f7f8fa;--card:#f4f6f9;--inset:#eef1f5;--active:#e6f1f4;--border:#dce0e6;--text:#1f2937;--muted:#5a6470;--accent:#00879b;--green:#1a7f37;--red:#cf222e;--orange:#bc4c00;--purple:#6f42c1;--cyan:#0a7ea4;--critical:#c0392b;--high:#bc4c00;--medium:#b8860b;--low:#2e6fd6;--info:#6a737d;--confirmed:#1a7f37;--fp:#cf222e;--unverified:#9a6700}
 body{font-family:Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:20px}
 h1{color:#00879b;border-bottom:2px solid var(--inset);padding-bottom:10px}
 h2.ip-hdr{background:var(--panel);color:#00879b;padding:8px 14px;border-left:4px solid #00879b;border-radius:4px;font-family:monospace;font-size:14px}
@@ -17398,7 +17432,8 @@ window.rtReset = function(){
 
     var html = '<!DOCTYPE html><html><head><meta charset="utf-8">'
       +'<title>'+escHtml(title)+'</title>'
-      +'<style>body{font-family:Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:24px}'
+      +'<style>:root{--bg:#ffffff;--panel:#f7f8fa;--card:#f4f6f9;--inset:#eef1f5;--border:#dce0e6;--text:#1f2937;--muted:#5a6470;--accent:#00879b;--critical:#c0392b;--high:#bc4c00;--medium:#b8860b;--low:#2e6fd6;--info:#6a737d}'
+      +'body{font-family:Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:24px}'
       +'h1{color:#00879b}table{width:100%;border-collapse:collapse;margin-top:16px}'
       +'th{background:var(--panel);padding:10px 12px;text-align:left;font-size:12px;color:var(--muted);border-bottom:2px solid var(--border)}'
       +'.stat{display:inline-block;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 20px;margin:4px;text-align:center}'
