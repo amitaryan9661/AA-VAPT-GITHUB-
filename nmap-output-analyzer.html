@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AA-VAPT | Nmap Output Analyzer</title>
+<style>
+:root{
+  --bg:#0d1117;--bg2:#111827;--bg3:#161f2e;--bg4:#1c2840;--bg5:#1e2e47;
+  --border:#1e3a5f;--text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+  --accent:#4fc3f7;--accent2:#38bdf8;--green:#22c55e;--red:#ef4444;
+  --orange:#f97316;--yellow:#f59e0b;--purple:#a855f7;--panel:#111827;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+/* NAV */
+nav{display:flex;align-items:center;gap:14px;padding:10px 18px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.navbrand{font-weight:800;font-size:13px;color:var(--text3)}
+.navdiv{color:var(--border);font-size:18px}
+.navtitle{font-weight:700;font-size:14px;color:var(--accent)}
+.navlinks{margin-left:auto;display:flex;gap:10px}
+.navlinks a{font-size:12px;color:var(--text3);text-decoration:none;padding:3px 9px;border-radius:5px;border:1px solid var(--border);transition:.15s}
+.navlinks a:hover{color:var(--accent);border-color:var(--accent)}
+/* LAYOUT */
+.app{display:flex;flex:1;overflow:hidden;height:calc(100vh - 43px)}
+.left{width:300px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;background:var(--bg2)}
+.right{flex:1;display:flex;flex-direction:column;overflow:hidden}
+/* UPLOAD */
+.upzone{border:2px dashed var(--border);border-radius:10px;margin:12px;padding:28px 14px;text-align:center;cursor:pointer;transition:.2s;background:var(--bg3)}
+.upzone:hover,.upzone.drag{border-color:var(--accent);background:var(--bg4)}
+.upzone .uico{font-size:34px;margin-bottom:8px}
+.upzone .ulbl{font-size:12px;color:var(--text2);margin-bottom:4px}
+.upzone .uhnt{font-size:10px;color:var(--text3)}
+.upzone .ubtn-row{display:flex;gap:6px;justify-content:center;margin-top:10px}
+.uok{margin:0 12px 8px;font-size:11px;padding:6px 10px;border-radius:6px;background:var(--bg4);text-align:center}
+/* FILELIST */
+.sec-hd{padding:7px 12px;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.07em;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.file-item{padding:5px 12px;font-size:11px;color:var(--text2);border-bottom:1px solid rgba(30,58,95,.4);display:flex;align-items:center;gap:6px;cursor:default}
+.file-item .ftype{font-size:10px;padding:1px 5px;border-radius:3px;font-weight:700}
+.ft-nmap{background:rgba(79,195,247,.12);color:var(--accent)}
+.ft-hydra{background:rgba(239,68,68,.12);color:var(--red)}
+.ft-other{background:rgba(100,116,139,.12);color:var(--text3)}
+/* STATS BAR */
+.statsbar{display:flex;gap:0;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0}
+.stat{flex:1;padding:8px 12px;border-right:1px solid var(--border);text-align:center}
+.stat:last-child{border-right:none}
+.stat .sv{font-size:18px;font-weight:800;line-height:1}
+.stat .sl{font-size:9px;color:var(--text3);margin-top:2px;text-transform:uppercase;letter-spacing:.06em}
+.s-crit{color:#ef4444}.s-high{color:#f97316}.s-med{color:#f59e0b}.s-low{color:#22c55e}.s-info{color:#4fc3f7}
+/* TABS */
+.tabs{display:flex;gap:0;background:var(--bg3);border-bottom:1px solid var(--border);flex-shrink:0}
+.tab{padding:8px 16px;font-size:12px;font-weight:600;cursor:pointer;color:var(--text3);border-bottom:2px solid transparent;transition:.15s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+/* CONTENT */
+.tab-body{flex:1;overflow-y:auto;padding:14px}
+/* FINDING CARD */
+.fcrd{background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden}
+.fcrd-hd{padding:10px 14px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.fcrd-hd:hover{background:var(--bg4)}
+.sev-badge{font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;flex-shrink:0}
+.sev-CRITICAL{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3)}
+.sev-HIGH{background:rgba(249,115,22,.15);color:#f97316;border:1px solid rgba(249,115,22,.3)}
+.sev-MEDIUM{background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3)}
+.sev-LOW{background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.3)}
+.sev-INFO{background:rgba(79,195,247,.1);color:#4fc3f7;border:1px solid rgba(79,195,247,.2)}
+.fcrd-body{padding:12px 14px;border-top:1px solid var(--border);display:none}
+.fcrd.open .fcrd-body{display:block}
+.fcrd-body pre{font-size:11px;color:var(--text2);white-space:pre-wrap;word-break:break-all;background:var(--bg);border-radius:5px;padding:8px;max-height:300px;overflow-y:auto}
+.ip-tag{font-size:10px;padding:1px 7px;border-radius:4px;background:rgba(79,195,247,.08);color:var(--accent);border:1px solid rgba(79,195,247,.2);font-family:monospace;font-weight:700}
+.port-tag{font-size:10px;padding:1px 6px;border-radius:4px;background:var(--bg4);color:var(--text2);font-family:monospace}
+.cve-tag{font-size:10px;padding:1px 7px;border-radius:4px;background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.25);font-family:monospace}
+/* HOST TABLE */
+.htbl{width:100%;border-collapse:collapse;font-size:12px}
+.htbl th{text-align:left;padding:7px 10px;background:var(--bg4);border-bottom:1px solid var(--border);font-size:10px;color:var(--text3);font-weight:700;letter-spacing:.05em}
+.htbl td{padding:6px 10px;border-bottom:1px solid rgba(30,58,95,.5);vertical-align:top}
+.htbl tr:hover td{background:var(--bg4)}
+/* CRED CARD */
+.cred-item{background:var(--bg3);border:1px solid rgba(239,68,68,.25);border-radius:7px;padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.cred-item .cred-proto{font-size:10px;font-weight:800;padding:2px 7px;border-radius:4px;background:rgba(239,68,68,.12);color:var(--red)}
+.cred-item .cred-user{font-family:monospace;font-size:12px;color:var(--green)}
+.cred-item .cred-pass{font-family:monospace;font-size:12px;color:var(--red)}
+/* BUTTONS */
+.btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg4);color:var(--text2);font-size:12px;cursor:pointer;font-weight:600;transition:.15s}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+.btn-dl{background:rgba(34,197,94,.1);color:var(--green);border-color:rgba(34,197,94,.3)}
+.btn-dl:hover{background:rgba(34,197,94,.2)}
+.btn-sm{font-size:11px;padding:3px 9px}
+/* EMPTY */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:var(--text3);gap:8px}
+.empty .eico{font-size:36px}
+</style>
+</head>
+<body>
+<nav>
+  <span class="navbrand">AA-VAPT</span>
+  <span class="navdiv">|</span>
+  <span class="navtitle">🔬 Nmap Output Analyzer</span>
+  <div class="navlinks">
+    <a href="nmap-pt.html">Nmap PT</a>
+    <a href="nessus-analyzer.html">Nessus Analyzer</a>
+    <a href="webapp-pt.html">WebApp PT</a>
+  </div>
+</nav>
+
+<div class="app">
+  <!-- LEFT PANEL -->
+  <div class="left">
+    <!-- UPLOAD ZONE -->
+    <div class="upzone" id="upZone"
+      ondragover="ev.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="this.classList.remove('drag');handleFiles(event.dataTransfer.files)">
+      <input type="file" id="fileIn" multiple
+        accept=".txt,.nmap,.gnmap,.xml,.log,.out"
+        style="display:none" onchange="handleFiles(this.files)">
+      <input type="file" id="folderIn" webkitdirectory multiple
+        style="display:none" onchange="handleFiles(this.files)">
+      <div class="uico">📂</div>
+      <div class="ulbl">Drop output files or folder</div>
+      <div class="uhnt">nmap -oN files · hydra logs · enum4linux</div>
+      <div class="ubtn-row">
+        <button class="btn btn-sm" onclick="document.getElementById('fileIn').click()">📄 Files</button>
+        <button class="btn btn-sm" onclick="document.getElementById('folderIn').click()">📁 Folder</button>
+      </div>
+    </div>
+    <div class="uok" id="uok" style="display:none"></div>
+
+    <div class="sec-hd">
+      <span>LOADED FILES</span>
+      <button class="btn btn-sm" onclick="clearAll()" style="font-size:9px;padding:1px 6px">✕ Clear</button>
+    </div>
+    <div id="fileList"></div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="right">
+    <div class="statsbar" id="statsbar">
+      <div class="stat"><div class="sv s-info" id="stHosts">0</div><div class="sl">Hosts</div></div>
+      <div class="stat"><div class="sv s-crit" id="stCrit">0</div><div class="sl">Critical</div></div>
+      <div class="stat"><div class="sv s-high" id="stHigh">0</div><div class="sl">High</div></div>
+      <div class="stat"><div class="sv s-med" id="stMed">0</div><div class="sl">Medium</div></div>
+      <div class="stat"><div class="sv s-low" id="stLow">0</div><div class="sl">Low</div></div>
+      <div class="stat"><div class="sv" id="stCreds" style="color:var(--red)">0</div><div class="sl">Creds Found</div></div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" id="tabFindings"  onclick="setTab('findings')">🔍 Findings</div>
+      <div class="tab"       id="tabHosts"      onclick="setTab('hosts')">🖥️ Hosts</div>
+      <div class="tab"       id="tabCreds"      onclick="setTab('creds')">🔑 Credentials</div>
+      <div class="tab"       id="tabReport"     onclick="setTab('report')">📄 Report</div>
+    </div>
+
+    <div class="tab-body" id="tabBody">
+      <div class="empty"><div class="eico">🔬</div><div>Upload nmap output files to analyze</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let _findings = [];   // {sev, title, ip, port, proto, svc, cves, detail, raw}
+let _hosts    = {};   // {ip: {ports:[{port,proto,svc,version,scripts}], vulns:[], creds:[]}}
+let _creds    = [];   // {ip, port, proto, user, pass}
+let _files    = [];   // {name, type}
+let _tab      = 'findings';
+
+// ── Severity helpers ───────────────────────────────────────────────────────
+const SEV_ORDER = {CRITICAL:0,HIGH:1,MEDIUM:2,LOW:3,INFO:4};
+
+function sevScore(s){ return SEV_ORDER[s] ?? 99; }
+
+// ── File handling ──────────────────────────────────────────────────────────
+async function handleFiles(fileList) {
+  if (!fileList || !fileList.length) return;
+  const uok = document.getElementById('uok');
+  uok.style.display = 'block';
+  uok.style.color = 'var(--text2)';
+  uok.textContent = '⏳ Parsing...';
+
+  const supported = ['.txt','.nmap','.gnmap','.xml','.log','.out'];
+  const files = Array.from(fileList).filter(f =>
+    supported.some(e => f.name.toLowerCase().endsWith(e))
+  );
+  if (!files.length) {
+    uok.style.color = 'var(--red)';
+    uok.textContent = '❌ No supported files found';
+    return;
+  }
+
+  let loaded = 0, skipped = 0;
+  for (const file of files) {
+    try {
+      const text = await file.text();
+      const ftype = detectFileType(text, file.name);
+      if (ftype === 'nmap')    parseNmapOutput(text, file.name);
+      else if (ftype === 'hydra') parseHydraOutput(text, file.name);
+      else if (ftype === 'enum4linux') parseEnum4linuxOutput(text, file.name);
+      else { skipped++; continue; }
+      _files.push({name: file.name, type: ftype});
+      loaded++;
+    } catch(e) { skipped++; console.warn(file.name, e); }
+  }
+
+  uok.style.color = loaded ? 'var(--green)' : 'var(--red)';
+  uok.textContent = `✅ ${loaded} file(s) parsed` + (skipped ? ` · ${skipped} skipped` : '');
+  renderFileList();
+  updateStats();
+  renderTab();
+}
+
+function detectFileType(text, name) {
+  const lname = name.toLowerCase();
+  if (lname.includes('hydra') || text.includes('[') && text.includes('][') && text.includes('login:')) return 'hydra';
+  if (text.includes('enum4linux') || lname.includes('enum4linux')) return 'enum4linux';
+  if (text.includes('Nmap scan report') || text.includes('# Nmap') || text.includes('Starting Nmap')) return 'nmap';
+  if (text.includes('login:') && text.includes('password:')) return 'hydra';
+  return 'unknown';
+}
+
+// ── Nmap Parser ────────────────────────────────────────────────────────────
+function parseNmapOutput(text, fname) {
+  // Extract IP
+  const ipMatch = text.match(/Nmap scan report for (\S+)/);
+  const ip = ipMatch ? ipMatch[1] : guessIPFromFilename(fname);
+  if (!ip) return;
+
+  if (!_hosts[ip]) _hosts[ip] = {ports:[], vulns:[], creds:[]};
+
+  // Parse ports
+  const portRe = /^(\d+)\/(tcp|udp)\s+open\s+(\S+)\s*(.*)/gm;
+  let m;
+  while ((m = portRe.exec(text)) !== null) {
+    const [, port, proto, svc, version] = m;
+    if (!_hosts[ip].ports.find(p => p.port === port && p.proto === proto)) {
+      _hosts[ip].ports.push({port, proto, svc: svc.trim(), version: version.trim(), scripts:[]});
+    }
+  }
+
+  // Parse NSE script blocks
+  // Each script starts with "| script-name:" 
+  const scriptBlockRe = /\| ([\w\-]+):([\s\S]*?)(?=\n\| [\w\-]+:|\n\n|\nNmap|\nHost is|\nOS |\Z)/g;
+  while ((m = scriptBlockRe.exec(text)) !== null) {
+    const scriptName = m[1];
+    const scriptBody = m[2];
+    processScriptBlock(ip, fname, scriptName, scriptBody, text);
+  }
+
+  // Also catch VULNERABLE markers not caught above
+  const vulnRe = /VULNERABLE:([\s\S]*?)(?=\n\n|\nNmap|\nHost|\n\|_)/g;
+  while ((m = vulnRe.exec(text)) !== null) {
+    const vulnBlock = m[0];
+    if (!_findings.some(f => f.raw === vulnBlock && f.ip === ip)) {
+      const cves = extractCVEs(vulnBlock);
+      const title = extractVulnTitle(vulnBlock) || 'Vulnerability Found';
+      addFinding('HIGH', title, ip, '', '', '', cves, vulnBlock);
+    }
+  }
+}
+
+function processScriptBlock(ip, fname, scriptName, body, fullText) {
+  const lname = scriptName.toLowerCase();
+
+  // VULNERABILITY scripts
+  if (lname.includes('vuln') || body.includes('VULNERABLE') || body.includes('CVE:')) {
+    const sev   = body.includes('VULNERABLE') ? classifyVulnSev(scriptName) : 'INFO';
+    const cves  = extractCVEs(body);
+    const title = vulnScriptTitle(scriptName, body);
+    const port  = guessPortFromContext(scriptName, fullText);
+    addFinding(sev, title, ip, port.port, port.proto, port.svc, cves, body.trim());
+    _hosts[ip].vulns.push({scriptName, body: body.trim(), cves, sev});
+    return;
+  }
+
+  // Interesting banners / info
+  if (lname === 'http-title') {
+    const title = body.replace(/[\|\s\n]/g, ' ').trim();
+    if (title && title.length > 2) {
+      addFinding('INFO', `HTTP Title: ${title}`, ip, '80', 'tcp', 'http', [], body.trim());
+    }
+  }
+  if (lname === 'smb-os-discovery') {
+    addFinding('INFO', `SMB OS: ${body.trim().replace(/\s+/g,' ').slice(0,80)}`, ip, '445', 'tcp', 'smb', [], body.trim());
+  }
+  if (lname === 'ssl-cert') {
+    const cn = (body.match(/Subject:.*CN=([^\s,\/]+)/) || [])[1];
+    if (cn) addFinding('INFO', `SSL Certificate: ${cn}`, ip, '443', 'tcp', 'https', [], body.trim());
+  }
+  if (lname === 'smb-enum-shares') {
+    addFinding('MEDIUM', `SMB Shares Enumerated`, ip, '445', 'tcp', 'smb', [], body.trim());
+  }
+  if (lname === 'ftp-anon' && body.includes('allowed')) {
+    addFinding('HIGH', 'FTP Anonymous Login Allowed', ip, '21', 'tcp', 'ftp', [], body.trim());
+  }
+  if (lname === 'http-auth-finder' && (body.includes('Basic') || body.includes('Digest'))) {
+    addFinding('MEDIUM', `HTTP Authentication: ${body.trim()}`, ip, '', 'tcp', 'http', [], body.trim());
+  }
+}
+
+function classifyVulnSev(scriptName) {
+  const name = scriptName.toLowerCase();
+  if (name.includes('ms17-010') || name.includes('eternalblue') ||
+      name.includes('ms08-067') || name.includes('shellshock') ||
+      name.includes('heartbleed') || name.includes('bluekeep'))  return 'CRITICAL';
+  if (name.includes('vuln'))  return 'HIGH';
+  return 'MEDIUM';
+}
+
+function vulnScriptTitle(scriptName, body) {
+  // Try to extract title from script output
+  const m = body.match(/\n\s+([A-Za-z][^\n]{5,60})\n/);
+  if (m) return m[1].trim();
+  return scriptName.replace(/-/g,' ').toUpperCase();
+}
+
+function extractCVEs(text) {
+  const matches = text.match(/CVE[-:][\d\-]+/gi) || [];
+  return [...new Set(matches.map(c => c.replace('CVE-','CVE-').toUpperCase()))];
+}
+
+function extractVulnTitle(text) {
+  const m = text.match(/([A-Z][A-Za-z0-9 \-]{5,60})\n/);
+  return m ? m[1].trim() : null;
+}
+
+function guessPortFromContext(scriptName, fullText) {
+  // Map common script names to ports
+  const map = {
+    'smb':'445','netbios':'139','ftp':'21','ssh':'22',
+    'http':'80','https':'443','rdp':'3389','smtp':'25',
+    'mysql':'3306','mssql':'1433','oracle':'1521',
+  };
+  for (const [k,v] of Object.entries(map)) {
+    if (scriptName.toLowerCase().includes(k)) return {port:v, proto:'tcp', svc:k};
+  }
+  // Try to find nearest port line before script in text
+  const scriptIdx = fullText.indexOf(scriptName);
+  const before = fullText.slice(Math.max(0, scriptIdx-300), scriptIdx);
+  const pm = before.match(/(\d+)\/(tcp|udp)\s+open\s+(\S+)/g);
+  if (pm && pm.length) {
+    const last = pm[pm.length-1];
+    const parts = last.split(/[\s\/]+/);
+    return {port: parts[0], proto: parts[1], svc: parts[3] || ''};
+  }
+  return {port:'', proto:'tcp', svc:''};
+}
+
+function guessIPFromFilename(fname) {
+  const m = fname.match(/(\d{1,3}(?:\.\d{1,3}){3})/);
+  return m ? m[1] : null;
+}
+
+// ── Hydra Parser ───────────────────────────────────────────────────────────
+function parseHydraOutput(text, fname) {
+  const re = /\[(\d+)\]\[([\w\-]+)\]\s+host:\s+(\S+)\s+login:\s+(\S+)\s+password:\s+(\S+)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const [, port, proto, ip, user, pass] = m;
+    const cred = {ip, port, proto, user, pass};
+    if (!_creds.some(c => c.ip===ip && c.user===user && c.pass===pass)) {
+      _creds.push(cred);
+      addFinding('CRITICAL', `Credentials Found: ${proto.toUpperCase()} ${ip}:${port}`, ip, port, 'tcp', proto, [], `Login: ${user}\nPassword: ${pass}`);
+      if (_hosts[ip]) _hosts[ip].creds.push(cred);
+    }
+  }
+}
+
+// ── Enum4linux Parser ──────────────────────────────────────────────────────
+function parseEnum4linuxOutput(text, fname) {
+  const ipM = text.match(/Target (?:Information|IP).*?(\d{1,3}(?:\.\d{1,3}){3})/i);
+  const ip = ipM ? ipM[1] : guessIPFromFilename(fname);
+  if (!ip) return;
+  if (!_hosts[ip]) _hosts[ip] = {ports:[], vulns:[], creds:[]};
+
+  // Shares
+  if (text.includes('Sharename') || text.includes('share name')) {
+    addFinding('MEDIUM', 'SMB Shares Found (enum4linux)', ip, '445', 'tcp', 'smb', [], 
+      (text.match(/Sharename.*\n.*\n([\s\S]{0,500})/i)||[])[0]||'See raw output');
+  }
+  // Users
+  const userMatches = text.match(/user:\[(\w+)\]/g) || [];
+  if (userMatches.length) {
+    addFinding('MEDIUM', `SMB Users Enumerated: ${userMatches.map(u=>u.replace(/user:\[|\]/g,'')).join(', ')}`,
+      ip,'445','tcp','smb',[],userMatches.join('\n'));
+  }
+  // Null session
+  if (text.includes('Null sessions are enabled') || (text.includes('anonymous') && text.includes('ok'))) {
+    addFinding('HIGH', 'SMB Null Session Enabled', ip, '445', 'tcp', 'smb', [], 'Null session authentication allowed');
+  }
+}
+
+// ── Finding store ──────────────────────────────────────────────────────────
+function addFinding(sev, title, ip, port, proto, svc, cves, detail) {
+  // Deduplicate
+  if (_findings.some(f => f.title===title && f.ip===ip && f.port===port)) return;
+  _findings.push({sev, title, ip, port, proto, svc, cves: cves||[], detail: detail||'', raw: detail||''});
+}
+
+// ── Stats ──────────────────────────────────────────────────────────────────
+function updateStats() {
+  document.getElementById('stHosts').textContent = Object.keys(_hosts).length;
+  document.getElementById('stCrit').textContent  = _findings.filter(f=>f.sev==='CRITICAL').length;
+  document.getElementById('stHigh').textContent  = _findings.filter(f=>f.sev==='HIGH').length;
+  document.getElementById('stMed').textContent   = _findings.filter(f=>f.sev==='MEDIUM').length;
+  document.getElementById('stLow').textContent   = _findings.filter(f=>f.sev==='LOW').length;
+  document.getElementById('stCreds').textContent = _creds.length;
+}
+
+// ── Tab control ────────────────────────────────────────────────────────────
+function setTab(t) {
+  _tab = t;
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)).classList.add('active');
+  renderTab();
+}
+
+function renderTab() {
+  if (_tab === 'findings') renderFindings();
+  else if (_tab === 'hosts') renderHosts();
+  else if (_tab === 'creds') renderCreds();
+  else if (_tab === 'report') renderReport();
+}
+
+// ── Render Findings ────────────────────────────────────────────────────────
+function renderFindings() {
+  const body = document.getElementById('tabBody');
+  if (!_findings.length) {
+    body.innerHTML = '<div class="empty"><div class="eico">🔍</div><div>No findings yet</div></div>';
+    return;
+  }
+  const sorted = [..._findings].sort((a,b) => sevScore(a.sev) - sevScore(b.sev));
+  let html = `<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="btn btn-sm" onclick="filterSev(null)">All (${_findings.length})</button>
+    ${['CRITICAL','HIGH','MEDIUM','LOW','INFO'].map(s => {
+      const cnt = _findings.filter(f=>f.sev===s).length;
+      return cnt ? `<button class="btn btn-sm sev-${s}" style="font-size:10px" onclick="filterSev('${s}')">${s} (${cnt})</button>` : '';
+    }).join('')}
+  </div>`;
+
+  for (const f of sorted) {
+    const cveHtml = f.cves.map(c => `<span class="cve-tag">${c}</span>`).join(' ');
+    html += `<div class="fcrd" onclick="this.classList.toggle('open')">
+      <div class="fcrd-hd">
+        <span class="sev-badge sev-${f.sev}">${f.sev}</span>
+        <span style="font-size:12px;font-weight:600;flex:1">${esc(f.title)}</span>
+        ${f.ip ? `<span class="ip-tag">${f.ip}</span>` : ''}
+        ${f.port ? `<span class="port-tag">${f.port}/${f.proto}</span>` : ''}
+        ${cveHtml}
+      </div>
+      <div class="fcrd-body"><pre>${esc(f.detail)}</pre></div>
+    </div>`;
+  }
+  body.innerHTML = html;
+}
+
+function filterSev(sev) {
+  const body = document.getElementById('tabBody');
+  document.querySelectorAll('.fcrd').forEach(el => {
+    if (!sev) { el.style.display=''; return; }
+    const badge = el.querySelector('.sev-badge');
+    el.style.display = badge && badge.textContent === sev ? '' : 'none';
+  });
+}
+
+// ── Render Hosts ───────────────────────────────────────────────────────────
+function renderHosts() {
+  const body = document.getElementById('tabBody');
+  const hosts = Object.keys(_hosts);
+  if (!hosts.length) {
+    body.innerHTML = '<div class="empty"><div class="eico">🖥️</div><div>No hosts parsed yet</div></div>';
+    return;
+  }
+  let html = `<table class="htbl">
+    <tr><th>IP</th><th>Open Ports</th><th>Vulns</th><th>Creds</th><th>Top Risk</th></tr>`;
+  for (const ip of hosts) {
+    const h = _hosts[ip];
+    const hFindings = _findings.filter(f => f.ip === ip);
+    const topSev = hFindings.reduce((best,f) => sevScore(f.sev) < sevScore(best) ? f.sev : best, 'INFO');
+    const portList = h.ports.map(p => `<span class="port-tag">${p.port}/${p.proto}</span>`).join(' ');
+    html += `<tr>
+      <td><span class="ip-tag">${ip}</span></td>
+      <td style="max-width:280px;word-break:break-all">${portList || '<span style="color:var(--text3)">—</span>'}</td>
+      <td>${hFindings.filter(f=>f.sev!=='INFO').length}</td>
+      <td>${_creds.filter(c=>c.ip===ip).length}</td>
+      <td><span class="sev-badge sev-${topSev}" style="font-size:9px">${topSev}</span></td>
+    </tr>`;
+  }
+  html += '</table>';
+  body.innerHTML = html;
+}
+
+// ── Render Credentials ─────────────────────────────────────────────────────
+function renderCreds() {
+  const body = document.getElementById('tabBody');
+  if (!_creds.length) {
+    body.innerHTML = '<div class="empty"><div class="eico">🔑</div><div>No credentials found</div><div style="font-size:11px;color:var(--text3)">Upload hydra output files to extract creds</div></div>';
+    return;
+  }
+  let html = `<div style="margin-bottom:10px;font-size:11px;color:var(--red);font-weight:700">⚠️ ${_creds.length} credential(s) found!</div>`;
+  for (const c of _creds) {
+    html += `<div class="cred-item">
+      <span class="ip-tag">${c.ip}</span>
+      <span class="port-tag">${c.port}/${c.proto}</span>
+      <span class="cred-proto">${c.proto.toUpperCase()}</span>
+      <span style="color:var(--text3);font-size:11px">user:</span>
+      <span class="cred-user">${esc(c.user)}</span>
+      <span style="color:var(--text3);font-size:11px">pass:</span>
+      <span class="cred-pass">${esc(c.pass)}</span>
+    </div>`;
+  }
+  body.innerHTML = html;
+}
+
+// ── Render Report ──────────────────────────────────────────────────────────
+function renderReport() {
+  const body = document.getElementById('tabBody');
+  const date = new Date().toLocaleDateString('en-IN', {year:'numeric',month:'long',day:'numeric'});
+  const hosts = Object.keys(_hosts);
+  const crit = _findings.filter(f=>f.sev==='CRITICAL').length;
+  const high = _findings.filter(f=>f.sev==='HIGH').length;
+  const med  = _findings.filter(f=>f.sev==='MEDIUM').length;
+  const low  = _findings.filter(f=>f.sev==='LOW').length;
+
+  body.innerHTML = `<div style="display:flex;gap:8px;margin-bottom:14px">
+    <button class="btn btn-dl" onclick="downloadHTMLReport()">⬇ Download HTML Report</button>
+    <button class="btn btn-dl" onclick="downloadTextReport()">⬇ Download TXT Report</button>
+  </div>
+  <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:16px;max-width:800px">
+    <h2 style="font-size:16px;margin-bottom:4px">Penetration Test — Nmap Findings Report</h2>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:14px">Generated: ${date}</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px">
+      <div style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:6px;padding:10px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:#ef4444">${crit}</div><div style="font-size:9px;color:var(--text3)">CRITICAL</div>
+      </div>
+      <div style="background:rgba(249,115,22,.1);border:1px solid rgba(249,115,22,.25);border-radius:6px;padding:10px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:#f97316">${high}</div><div style="font-size:9px;color:var(--text3)">HIGH</div>
+      </div>
+      <div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:6px;padding:10px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:#f59e0b">${med}</div><div style="font-size:9px;color:var(--text3)">MEDIUM</div>
+      </div>
+      <div style="background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);border-radius:6px;padding:10px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:#22c55e">${low}</div><div style="font-size:9px;color:var(--text3)">LOW</div>
+      </div>
+    </div>
+    <div style="font-size:12px;line-height:1.7;color:var(--text2)">
+      <strong>Scope:</strong> ${hosts.length} host(s) analyzed — ${hosts.join(', ')}<br>
+      <strong>Total Findings:</strong> ${_findings.length} · <strong>Credentials Found:</strong> ${_creds.length}
+    </div>
+  </div>`;
+}
+
+// ── Report Downloads ───────────────────────────────────────────────────────
+function downloadHTMLReport() {
+  const date  = new Date().toISOString().split('T')[0];
+  const hosts = Object.keys(_hosts);
+  const sorted = [..._findings].sort((a,b) => sevScore(a.sev)-sevScore(b.sev));
+
+  let rows = sorted.map(f => `
+    <tr>
+      <td><span class="sev sev-${f.sev}">${f.sev}</span></td>
+      <td>${esc(f.title)}</td>
+      <td>${f.ip||''}</td>
+      <td>${f.port ? f.port+'/'+f.proto : ''}</td>
+      <td>${f.cves.map(c=>`<code>${c}</code>`).join(' ')}</td>
+    </tr>`).join('');
+
+  let credRows = _creds.map(c =>
+    `<tr><td>${c.ip}</td><td>${c.port}/${c.proto}</td><td><code>${esc(c.user)}</code></td><td><code>${esc(c.pass)}</code></td></tr>`
+  ).join('');
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+  <title>PT Report — ${date}</title>
+  <style>
+    body{font-family:Arial,sans-serif;background:#0d1117;color:#e2e8f0;padding:30px;max-width:1000px;margin:0 auto}
+    h1{color:#4fc3f7;border-bottom:2px solid #1e3a5f;padding-bottom:8px}
+    h2{color:#94a3b8;font-size:14px;margin:20px 0 8px;text-transform:uppercase;letter-spacing:.08em}
+    table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:12px}
+    th{background:#1c2840;padding:8px 12px;text-align:left;color:#64748b;font-size:10px;letter-spacing:.06em}
+    td{padding:7px 12px;border-bottom:1px solid #1e3a5f;vertical-align:top}
+    .sev{font-size:10px;font-weight:800;padding:2px 7px;border-radius:4px}
+    .sev-CRITICAL{background:#450a0a;color:#ef4444}
+    .sev-HIGH{background:#431407;color:#f97316}
+    .sev-MEDIUM{background:#422006;color:#f59e0b}
+    .sev-LOW{background:#052e16;color:#22c55e}
+    .sev-INFO{background:#082f49;color:#4fc3f7}
+    code{background:#1c2840;padding:1px 5px;border-radius:3px;font-size:11px}
+    .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
+    .stat-box{background:#1c2840;border-radius:8px;padding:14px;text-align:center}
+    .stat-box .n{font-size:28px;font-weight:800}
+    .stat-box .l{font-size:10px;color:#64748b;margin-top:2px}
+  </style></head><body>
+  <h1>🔬 Penetration Test — Nmap Findings Report</h1>
+  <p style="color:#64748b;font-size:12px">Generated: ${new Date().toLocaleString()} &nbsp;|&nbsp; Hosts: ${hosts.join(', ')}</p>
+  <div class="stat-grid">
+    <div class="stat-box"><div class="n" style="color:#ef4444">${_findings.filter(f=>f.sev==='CRITICAL').length}</div><div class="l">CRITICAL</div></div>
+    <div class="stat-box"><div class="n" style="color:#f97316">${_findings.filter(f=>f.sev==='HIGH').length}</div><div class="l">HIGH</div></div>
+    <div class="stat-box"><div class="n" style="color:#f59e0b">${_findings.filter(f=>f.sev==='MEDIUM').length}</div><div class="l">MEDIUM</div></div>
+    <div class="stat-box"><div class="n" style="color:#22c55e">${_findings.filter(f=>f.sev==='LOW').length}</div><div class="l">LOW</div></div>
+  </div>
+  <h2>All Findings</h2>
+  <table><tr><th>SEVERITY</th><th>FINDING</th><th>HOST</th><th>PORT</th><th>CVEs</th></tr>${rows}</table>
+  ${_creds.length ? `<h2>⚠️ Credentials Found</h2>
+  <table><tr><th>HOST</th><th>PORT/PROTO</th><th>USERNAME</th><th>PASSWORD</th></tr>${credRows}</table>` : ''}
+  </body></html>`;
+
+  const blob = new Blob([html], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `pt_report_${date}.html`;
+  a.click();
+}
+
+function downloadTextReport() {
+  const date  = new Date().toISOString().split('T')[0];
+  const sorted = [..._findings].sort((a,b) => sevScore(a.sev)-sevScore(b.sev));
+  const lines = [
+    '═'.repeat(65),
+    '  PENETRATION TEST REPORT — Nmap Output Analysis',
+    `  Generated : ${new Date().toLocaleString()}`,
+    `  Hosts     : ${Object.keys(_hosts).join(', ')}`,
+    '═'.repeat(65), '',
+    `SUMMARY`,
+    `  Critical : ${_findings.filter(f=>f.sev==='CRITICAL').length}`,
+    `  High     : ${_findings.filter(f=>f.sev==='HIGH').length}`,
+    `  Medium   : ${_findings.filter(f=>f.sev==='MEDIUM').length}`,
+    `  Low      : ${_findings.filter(f=>f.sev==='LOW').length}`,
+    `  Creds    : ${_creds.length}`,
+    '', '─'.repeat(65), 'FINDINGS', '─'.repeat(65), '',
+  ];
+  sorted.forEach((f,i) => {
+    lines.push(`[${i+1}] [${f.sev}] ${f.title}`);
+    lines.push(`    Host: ${f.ip||'?'}  Port: ${f.port||'?'}/${f.proto||'?'}`);
+    if (f.cves.length) lines.push(`    CVEs: ${f.cves.join(', ')}`);
+    if (f.detail) lines.push(`    Detail:\n${f.detail.split('\n').map(l=>'      '+l).join('\n')}`);
+    lines.push('');
+  });
+  if (_creds.length) {
+    lines.push('─'.repeat(65), '⚠️  CREDENTIALS FOUND', '─'.repeat(65), '');
+    _creds.forEach(c => {
+      lines.push(`  ${c.ip}:${c.port} [${c.proto.toUpperCase()}]`);
+      lines.push(`    Username : ${c.user}`);
+      lines.push(`    Password : ${c.pass}`);
+      lines.push('');
+    });
+  }
+  const blob = new Blob([lines.join('\n')], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `pt_report_${date}.txt`;
+  a.click();
+}
+
+// ── File list render ───────────────────────────────────────────────────────
+function renderFileList() {
+  const el = document.getElementById('fileList');
+  el.innerHTML = _files.map(f => {
+    const cls = f.type === 'nmap' ? 'ft-nmap' : f.type === 'hydra' ? 'ft-hydra' : 'ft-other';
+    return `<div class="file-item"><span class="ftype ${cls}">${f.type}</span><span>${f.name}</span></div>`;
+  }).join('');
+}
+
+function clearAll() {
+  _findings=[]; _hosts={}; _creds=[]; _files=[];
+  document.getElementById('fileList').innerHTML = '';
+  document.getElementById('uok').style.display = 'none';
+  updateStats();
+  renderTab();
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
