@@ -170,6 +170,10 @@ class SOAROrchestrator:
             self._tasks[task.job_id] = task
             if self._queue is not None:
                 await self._queue.put((task.priority, task.job_id))
+            else:
+                # FIX BUG-09: Warn instead of silent drop when queue not ready
+                log.warning("SOAR queue not ready — finding '%s' stored but not queued. "
+                            "Call orchestrator.start() first.", task.finding_name)
             ids.append(task.job_id)
 
         await self._emit("triage_started", {
@@ -393,11 +397,12 @@ class SOAROrchestrator:
         for t in tasks:
             verdicts[t.verdict] = verdicts.get(t.verdict, 0) + 1
             states[t.state.value] = states.get(t.state.value, 0) + 1
+        # FIX BUG-02: Guard against _queue being None before start() is called
         return {
             "total": len(tasks),
             "verdicts": verdicts,
             "states": states,
-            "queue_size": self._queue.qsize(),
+            "queue_size": self._queue.qsize() if self._queue is not None else 0,
             "circuit_breaker_ai": "open" if self._cb_ai.is_open else "closed",
             "circuit_breaker_mem": "open" if self._cb_mem.is_open else "closed",
         }

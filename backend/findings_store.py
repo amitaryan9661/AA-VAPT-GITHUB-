@@ -59,6 +59,25 @@ def get_all():
         return list(_FINDINGS)
 
 
+def get_page(page: int = 0, per_page: int = 100) -> dict:
+    """ENH-06: Paginated access to findings — avoids returning huge lists at once.
+    Returns {"findings": [...], "page": N, "per_page": N, "total": N, "has_more": bool}
+    """
+    per_page = max(1, min(per_page, 500))   # clamp 1-500
+    with _LOCK:
+        total = len(_FINDINGS)
+        start = page * per_page
+        end   = start + per_page
+        chunk = list(_FINDINGS[start:end])
+    return {
+        "findings": chunk,
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "has_more": end < total,
+    }
+
+
 def get_meta():
     with _LOCK:
         return dict(_META)

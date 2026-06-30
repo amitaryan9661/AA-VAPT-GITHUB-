@@ -273,12 +273,14 @@ class WebAppCrawler:
                 if await self._is_auth_page(page, current_url):
                     result.auth_endpoints.append(current_url)
 
-                # Extract JS files
+                # Extract JS files — FIX BUG-11: deduplicate
                 js_urls = await page.evaluate("""
                     () => Array.from(document.querySelectorAll('script[src]'))
                               .map(s => s.src).filter(s => s.startsWith('http'))
                 """)
-                result.js_files.extend(js_urls)
+                for jurl in (js_urls or []):
+                    if jurl not in result.js_files:
+                        result.js_files.append(jurl)
 
                 # Collect input parameters
                 params = await self._extract_params(page, current_url)
@@ -336,11 +338,27 @@ class WebAppCrawler:
             )
             if submit:
                 await submit.click()
-                await page.wait_for_load_state("networkidle", timeout=10000)
-                log.info(f"Auto-login attempted for {username}")
             else:
                 await page.keyboard.press("Enter")
-                await page.wait_for_load_state("networkidle", timeout=10000)
+            await page.wait_for_load_state("networkidle", timeout=10000)
+            log.info(f"Auto-login attempted for {username}")
+            # FIX BUG-10: Verify login success by checking if still on login page
+            current_url = page.url
+            current_html = (await page.content()).lower()
+            login_failed = (
+                any(kw in current_url.lower() for kw in ("login", "signin", "error", "fail"))
+                or any(phrase in current_html for phrase in
+                       ("invalid password", "incorrect password", "login failed",
+                        "wrong password", "authentication failed"))
+            )
+            if login_failed:
+                result.errors.append(
+                    f"Auto-login may have FAILED for {username} — still on: {current_url}. "
+                    "Check credentials or CAPTCHA/MFA requirements."
+                )
+                log.warning(f"Auto-login likely failed for {username} at {current_url}")
+            else:
+                log.info(f"Auto-login SUCCESS for {username} → {current_url}")
         except Exception as e:
             result.errors.append(f"Auto-login error: {e}")
 
@@ -365,16 +383,16 @@ class WebAppCrawler:
         return sorted(tech)
 
     async def _extract_links(self, page, base_origin: str) -> list:
+        # FIX BUG-03: Pass base_origin as argument to avoid JS injection via f-string
         try:
-            links = await page.evaluate(f"""
-                () => {{
-                    const base = '{base_origin}';
+            links = await page.evaluate("""
+                (base) => {
                     return Array.from(document.querySelectorAll('a[href]'))
                         .map(a => a.href)
                         .filter(h => h.startsWith(base) && !h.includes('#'))
                         .slice(0, 100);
-                }}
-            """)
+                }
+            """, base_origin)
             return links or []
         except Exception:
             return []
@@ -438,9 +456,11 @@ class WebAppCrawler:
         secrets = []
         for js_url in js_urls[:10]:
             try:
+                # FIX BUG-03: Pass js_url as argument to avoid JS injection
                 content = await page.evaluate(
-                    f"(async () => {{ const r = await fetch('{js_url}');"
-                    " return r.ok ? await r.text() : ''; }})()"
+                    "(async (url) => { const r = await fetch(url);"
+                    " return r.ok ? await r.text() : ''; })(arguments[0])",
+                    js_url
                 )
                 if not content:
                     continue

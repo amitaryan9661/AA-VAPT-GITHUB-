@@ -85,6 +85,7 @@ def store_finding(
             "raw_output_preview": raw_output[:300]
         }
         col.add(documents=[document], metadatas=[metadata], ids=[doc_id])
+        _bump_verdict(verdict)   # FIX BUG-07: keep in-memory counter in sync
         log.info(f"Stored finding: {finding_name} [{verdict}] id={doc_id}")
         return doc_id
     except Exception as e:
@@ -224,6 +225,15 @@ def build_memory_context(similar: list[dict]) -> str:
     return "Similar past analyses:\n" + "\n".join(lines)
 
 
+# ── In-memory verdict counters (FIX BUG-07 / ENH-08: avoid fetching ALL records for stats) ──
+_VERDICT_COUNTS: dict = {"confirmed": 0, "fp": 0, "needs-more": 0}
+
+
+def _bump_verdict(verdict: str, delta: int = 1):
+    """Increment/decrement in-memory verdict counter (thread-safe via GIL for int ops)."""
+    _VERDICT_COUNTS[verdict] = _VERDICT_COUNTS.get(verdict, 0) + delta
+
+
 # ── Stats ──────────────────────────────────────────────────────
 def get_stats() -> dict:
     col = get_collection()
@@ -231,12 +241,20 @@ def get_stats() -> dict:
         return {"total": 0, "ready": False}
     try:
         total = col.count()
-        verdicts = {"confirmed": 0, "fp": 0, "needs-more": 0}
-        if total > 0:
-            all_meta = col.get(include=["metadatas"])["metadatas"]
-            for m in all_meta:
-                v = m.get("verdict", "needs-more")
-                verdicts[v] = verdicts.get(v, 0) + 1
+        # FIX BUG-07: Use in-memory counters instead of fetching all records.
+        # If counters seem off (server restart), do a one-time resync on small DBs.
+        verdicts = dict(_VERDICT_COUNTS)
+        if total > 0 and sum(verdicts.values()) == 0:
+            # counters lost (e.g. server restart) — resync from DB, limit to 2000 records
+            try:
+                sample = col.get(include=["metadatas"], limit=2000)["metadatas"]
+                verdicts = {"confirmed": 0, "fp": 0, "needs-more": 0}
+                for m in sample:
+                    v = m.get("verdict", "needs-more")
+                    verdicts[v] = verdicts.get(v, 0) + 1
+                _VERDICT_COUNTS.update(verdicts)
+            except Exception:
+                pass
         return {"total": total, "ready": True, "verdicts": verdicts,
                 "persist_dir": CHROMA_PERSIST_DIR}
     except Exception as e:

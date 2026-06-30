@@ -10,13 +10,17 @@ _LIST_TTL = 8  # seconds
 
 log = logging.getLogger("aavapt.ai.ollama")
 _client = _ollama.Client(host=OLLAMA_HOST)
+_async_client = _ollama.AsyncClient(host=OLLAMA_HOST)  # truly async — cancellable
 _active_model = None
 
 MODEL_PREFERENCE = [
-    "deepseek-r1:7b","deepseek-r1:1.5b","deepseek-r1",
-    "gemma3:9b","gemma3:4b","gemma3:1b","gemma2:9b","gemma2:2b","gemma",
-    "llama3.2:3b","llama3.2:1b","llama3:8b","llama3",
-    "mistral:7b","mistral","phi3:mini","phi3","qwen2:7b","qwen2",
+    "llama3.2:3b","llama3.2:1b","llama3.2",   # best tool-calling support
+    "llama3.1:8b","llama3.1",                   # also supports tool calls
+    "llama3:8b","llama3",
+    "mistral-nemo","mistral:7b","mistral",
+    "gemma3:9b","gemma3:4b","gemma3:1b",
+    "deepseek-r1:7b","deepseek-r1:1.5b","deepseek-r1",  # last — no native tool calls
+    "phi3:mini","phi3","qwen2:7b","qwen2",
 ]
 MODEL_DISPLAY = {
     "deepseek":"DeepSeek-R1","gemma":"Gemma","llama":"Llama3",
@@ -98,10 +102,252 @@ def chat(prompt, system="", model=None):
         log.error("Ollama chat error: %s", e)
         raise
 
-async def _chat_async(prompt, system="", model=None):
-    """Run the blocking sync chat() in a thread so the event loop is not blocked."""
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, lambda: chat(prompt, system, model))
+async def _chat_async(prompt, system="", model=None, timeout=45):
+    """Truly async chat using AsyncClient — timeout actually cancels the request."""
+    m = model or get_available_model()
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt})
+    try:
+        resp = await asyncio.wait_for(
+            _async_client.chat(model=m, messages=messages,
+                               options={"temperature": 0.1, "num_predict": 1024}),
+            timeout=timeout,
+        )
+        return (resp.message.content or "").strip()
+    except asyncio.TimeoutError:
+        raise Exception(f"LLM timeout after {timeout}s — model may still be loading")
+    except Exception as e:
+        log.error("_chat_async error: %s", e)
+        raise
+
+
+# ─────────────────────────────────────────────────────────────
+#  Tool-calling (OpenAI-compatible Ollama format)
+# ─────────────────────────────────────────────────────────────
+
+_NO_TOOL_CALL_MODELS = ("deepseek-r1", "deepseek-v2", "llama2",
+                         "phi3", "phi4", "gemma", "qwen",
+                         "mistral")  # all mistral variants — use JSON-prompt fallback
+
+def _model_supports_tool_calls(model_name: str) -> bool:
+    """Models known to support Ollama native tool_calls."""
+    name = (model_name or "").lower()
+    # These don't reliably support Ollama tool_calls — use JSON-prompt instead
+    for skip in _NO_TOOL_CALL_MODELS:
+        if skip in name:
+            return False
+    # llama3.1+, mistral-nemo, command-r, firefunction support tool calls
+    for ok in ("llama3.1", "llama3.2", "mistral-nemo", "command-r",
+               "firefunction", "hermes", "functionary"):
+        if ok in name:
+            return True
+    return False
+
+
+def chat_with_tools(messages: list, tools: list, model=None) -> dict:
+    """
+    Call Ollama using native tool-calling format with automatic JSON-prompt fallback.
+
+    Strategy:
+      1. Try native tool-calling (tools= parameter) — works on Ollama ≥0.2 + capable models
+      2. If tool_calls not returned, try JSON-in-text extraction from the response
+      3. If tools= fails entirely (older Ollama / unsupported model), fall back to
+         plain chat with a JSON-format instruction prompt
+
+    Returns: {"tool_call": {"name":..., "arguments":...}, "content": thought_text}
+    """
+    m = model or get_available_model()
+
+    # ── Attempt 1: native tool-calling (skip for unsupported models) ───
+    if not _model_supports_tool_calls(m):
+        log.debug("Model %s: skipping native tool_calls, using JSON-prompt", m)
+        return _json_prompt_fallback(messages, tools, m)
+
+    try:
+        resp = _client.chat(
+            model=m,
+            messages=messages,
+            tools=tools,
+            options={"temperature": 0.0, "num_predict": 512},
+        )
+        msg = resp.message
+
+        if msg.tool_calls:
+            tc = msg.tool_calls[0]
+            fn = tc.function
+            args = fn.arguments if isinstance(fn.arguments, dict) else json.loads(fn.arguments or "{}")
+            log.debug("Tool-call (native): %s %s", fn.name, args)
+            return {"tool_call": {"name": fn.name, "arguments": args}, "content": ""}
+
+        # Model responded with text (no tool_call) — try JSON extraction
+        text = (msg.content or "").strip()
+        extracted = _extract_json_block(text)
+        if extracted and "action" in extracted:
+            log.debug("Tool-call (json-in-text): %s", extracted.get("action"))
+            return {
+                "tool_call": {
+                    "name":      extracted["action"],
+                    "arguments": extracted.get("action_input", {}),
+                },
+                "content": extracted.get("thought", ""),
+            }
+
+        # Text reply with no tool — return as content (agent will treat as finish)
+        return {"tool_call": None, "content": text}
+
+    except Exception as e:
+        log.warning("Native tool-calling failed (%s) — falling back to JSON-prompt", e)
+
+    return _json_prompt_fallback(messages, tools, m)
+
+
+def _build_json_prompt(messages: list, tools: list) -> str:
+    """Build a compact single-turn JSON-output prompt."""
+    tool_lines = "\n".join(
+        f'  {t["function"]["name"]}: {t["function"].get("description","")[:80]}'
+        for t in tools
+    )
+    system_content = next((m["content"] for m in messages if m["role"] == "system"), "")
+    recent = [m for m in messages[-4:] if m["role"] in ("user", "tool")]
+    context = "\n".join(
+        f"[{m['role'].upper()}]: {str(m.get('content',''))[:200]}"
+        for m in recent
+    )
+    return (
+        f"{system_content[:600]}\n\n"
+        f"TOOLS:\n{tool_lines}\n\n"
+        f"CONTEXT:\n{context}\n\n"
+        "JSON only — no markdown:\n"
+        '{"thought":"...","action":"tool_name","action_input":{...}}\n'
+        'Done? {"thought":"done","action":"finish","action_input":{"answer":"..."}}'
+    )
+
+
+def _parse_json_response(text: str) -> dict:
+    """Parse JSON action from LLM text response."""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    extracted = _extract_json_block(text)
+    if extracted and "action" in extracted:
+        log.info("JSON-prompt → %s", extracted.get("action"))
+        return {
+            "tool_call": {
+                "name":      extracted["action"],
+                "arguments": extracted.get("action_input", {}),
+            },
+            "content": extracted.get("thought", ""),
+        }
+    return {"tool_call": None, "content": text}
+
+
+def _json_prompt_fallback(messages: list, tools: list, model: str) -> dict:
+    """Sync JSON-prompt fallback — only called from sync context."""
+    prompt = _build_json_prompt(messages, tools)
+    resp = _client.chat(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        options={"temperature": 0.0, "num_predict": 200},
+    )
+    return _parse_json_response(resp.message.content or "")
+
+
+async def _json_prompt_fallback_async(messages: list, tools: list,
+                                      model: str, timeout: int = 45) -> dict:
+    """Async JSON-prompt — uses AsyncClient so timeout actually cancels the request."""
+    prompt = _build_json_prompt(messages, tools)
+    resp = await asyncio.wait_for(
+        _async_client.chat(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            options={"temperature": 0.0, "num_predict": 200},
+        ),
+        timeout=timeout,
+    )
+    return _parse_json_response(resp.message.content or "")
+
+
+async def chat_with_tools_async(messages: list, tools: list, model=None, timeout=45) -> dict:
+    """
+    Async tool-calling — uses AsyncClient so timeouts actually cancel the HTTP request.
+
+    Flow:
+      1. If model doesn't support native tool_calls → _json_prompt_fallback_async (truly cancellable)
+      2. If model supports native tool_calls → try native via AsyncClient, fall back to async JSON-prompt
+    """
+    m = model or get_available_model()
+
+    # ── Fast path: model known to not support tool_calls ──────────────────
+    if not _model_supports_tool_calls(m):
+        log.debug("chat_with_tools_async: %s → JSON-prompt (timeout=%ds)", m, timeout)
+        try:
+            return await _json_prompt_fallback_async(messages, tools, m, timeout=timeout)
+        except asyncio.TimeoutError:
+            raise Exception(f"LLM timeout after {timeout}s — try a smaller/faster model")
+
+    # ── Native tool_calls via AsyncClient ─────────────────────────────────
+    try:
+        resp = await asyncio.wait_for(
+            _async_client.chat(
+                model=m,
+                messages=messages,
+                tools=tools,
+                options={"temperature": 0.0, "num_predict": 512},
+            ),
+            timeout=timeout,
+        )
+        msg = resp.message
+        if msg.tool_calls:
+            tc = msg.tool_calls[0]
+            fn = tc.function
+            args = fn.arguments if isinstance(fn.arguments, dict) else json.loads(fn.arguments or "{}")
+            log.debug("Native tool-call: %s %s", fn.name, args)
+            return {"tool_call": {"name": fn.name, "arguments": args}, "content": ""}
+
+        # Text reply — try JSON extraction
+        text = (msg.content or "").strip()
+        extracted = _extract_json_block(text)
+        if extracted and "action" in extracted:
+            return {
+                "tool_call": {"name": extracted["action"], "arguments": extracted.get("action_input", {})},
+                "content": extracted.get("thought", ""),
+            }
+        return {"tool_call": None, "content": text}
+
+    except asyncio.TimeoutError:
+        raise Exception(f"LLM timeout after {timeout}s — try a smaller/faster model")
+    except Exception as e:
+        log.warning("Native tool-calling failed (%s) — falling back to async JSON-prompt", e)
+        return await _json_prompt_fallback_async(messages, tools, m, timeout=timeout)
+
+
+def _extract_json_block(text: str) -> dict:
+    """Extract first balanced JSON object from text (fallback for non-tool-call models)."""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    for start in range(len(text)):
+        if text[start] != "{":
+            continue
+        depth, in_str, escape = 0, False, False
+        for end in range(start, len(text)):
+            ch = text[end]
+            if escape:
+                escape = False; continue
+            if ch == "\\" and in_str:
+                escape = True; continue
+            if ch == '"':
+                in_str = not in_str; continue
+            if in_str:
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        return json.loads(text[start:end + 1])
+                    except Exception:
+                        break
+    return {}
 
 def _extract_json(text):
     """FIX B12: Robust JSON extraction — find the largest balanced { } block."""

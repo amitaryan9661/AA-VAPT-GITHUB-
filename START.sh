@@ -1,29 +1,44 @@
-#!/usr/bin/env bash
-# ════════════════════════════════════════════════════════════════
-#  AA-VAPT — One command to rule them all
-#  Usage:  bash START.sh
-#  - First run : installs dependencies, then starts in background
-#  - Next runs : just starts (or restarts) in background
-#  Tool: http://localhost:8181/nessus-analyzer.html
-# ════════════════════════════════════════════════════════════════
-set -e
-DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$DIR"
+#!/bin/bash
+echo ""
+echo " ========================================"
+echo "  AA-VAPT AI Agent - Starting All Services"
+echo " ========================================"
+echo ""
 
-GREEN='\033[0;32m'; CYAN='\033[0;36m'; YELLOW='\033[1;33m'; NC='\033[0m'
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$PROJECT_DIR"
 
-# Install only once (marker file keeps subsequent runs instant)
-if [ ! -f "${DIR}/.installed" ]; then
-  echo -e "${CYAN}[i] First run — installing dependencies...${NC}"
-  if [ -f "${DIR}/install.sh" ]; then
-    bash "${DIR}/install.sh" && touch "${DIR}/.installed" \
-      || echo -e "${YELLOW}[!] install.sh had issues — continuing anyway${NC}"
-  fi
+# ── Ollama ────────────────────────────────────────────────────
+if command -v ollama &>/dev/null; then
+    if ! pgrep -x ollama &>/dev/null; then
+        echo "[1/3] Starting Ollama..."
+        ollama serve &>/dev/null &
+        sleep 2
+        echo "      Ollama started."
+    else
+        echo "[1/3] Ollama already running."
+    fi
+else
+    echo "[1/3] Ollama not found — AI features limited."
 fi
 
-# Start everything in the background (survives terminal close)
-bash "${DIR}/daemon.sh" restart
+# ── Dependencies ──────────────────────────────────────────────
+if [ ! -f ".deps_installed" ]; then
+    echo "[2/3] Installing dependencies..."
+    pip install -r backend/requirements.txt -q && touch .deps_installed
+else
+    echo "[2/3] Dependencies OK."
+fi
 
-echo -e "${GREEN}[+] AA-VAPT is running in the background.${NC}"
-echo -e "    Open : ${CYAN}http://localhost:8181/nessus-analyzer.html${NC}"
-echo -e "    Stop : bash daemon.sh stop   |   Status: bash daemon.sh status"
+# ── Backend ───────────────────────────────────────────────────
+echo "[3/3] Starting backend..."
+echo ""
+echo "  Agent UI : http://localhost:8000/agent.html"
+echo "  Main UI  : http://localhost:8000/index.html"
+echo "  API Docs : http://localhost:8000/docs"
+echo ""
+echo "  Ctrl+C to stop."
+echo " ========================================"
+echo ""
+
+python3 -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload

@@ -178,6 +178,36 @@ pre.term .b{color:#90caf9}
 .modal-status{font-size:11px;padding:4px 0;min-height:18px}
 
 /* ── AI CHAT PANEL ── */
+/* ── Agent Panel ── */
+.mtab.active-agent{background:#a855f7;color:#fff;border-color:#a855f7}
+.ag-panel{display:flex;flex-direction:column;height:100%;gap:0;background:var(--bg)}
+.ag-toolbar{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px;border-bottom:1px solid var(--border);flex-shrink:0;align-items:center}
+.ag-msgs{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.ag-msg-user{padding:7px 10px;border-radius:7px;font-size:11px;background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.3);align-self:flex-end;max-width:88%;word-break:break-word}
+.ag-msg-agent{padding:7px 10px;border-radius:7px;font-size:11px;background:var(--bg3);border:1px solid var(--border);word-break:break-word;white-space:pre-wrap}
+.ag-step{background:var(--bg4);border:1px solid var(--border);border-radius:6px;font-size:10px;padding:5px 8px;cursor:pointer}
+.ag-step-hd{display:flex;align-items:center;gap:6px;font-weight:600}
+.ag-step-body{display:none;margin-top:5px;color:var(--text3);font-family:monospace;font-size:10px;white-space:pre-wrap;max-height:120px;overflow-y:auto}
+.ag-hitl{background:var(--bg3);border:2px solid #f59e0b;border-radius:8px;padding:10px 12px;font-size:11px}
+.ag-hitl-title{color:#f59e0b;font-weight:700;margin-bottom:5px}
+.ag-hitl-btns{display:flex;gap:6px;margin-top:8px}
+.ag-btn-ok{background:#22c55e;color:#000;border:none;padding:5px 14px;border-radius:5px;font-weight:700;cursor:pointer;font-size:11px}
+.ag-btn-no{background:#ef4444;color:#fff;border:none;padding:5px 14px;border-radius:5px;font-weight:700;cursor:pointer;font-size:11px}
+.ag-thinking{display:flex;align-items:center;gap:6px;color:var(--text3);font-size:11px;padding:4px 0}
+.ag-thinking span{animation:agpulse 1s infinite}
+@keyframes agpulse{0%,100%{opacity:1}50%{opacity:.3}}
+.ag-final{background:rgba(34,197,94,.06);border:1px solid #22c55e44;border-radius:6px;padding:8px 10px;font-size:11px;white-space:pre-wrap;max-height:300px;overflow-y:auto}
+.ag-input-row{display:flex;gap:5px;padding:8px 12px;border-top:1px solid var(--border);flex-shrink:0}
+.ag-input{flex:1;background:var(--bg4);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 10px;font-size:11px;font-family:inherit;resize:none;outline:none;min-height:32px;max-height:80px}
+.ag-input:focus{border-color:#a855f7}
+.ag-send{background:#a855f7;border:none;color:#fff;padding:0 12px;border-radius:6px;cursor:pointer;font-size:14px;flex-shrink:0}
+.ag-send:disabled{background:var(--border);cursor:not-allowed}
+.ag-chips{display:flex;flex-wrap:wrap;gap:4px;padding:0 12px 6px}
+.ag-chip{background:var(--bg4);border:1px solid var(--border);border-radius:12px;padding:2px 8px;font-size:10px;color:var(--text3);cursor:pointer}
+.ag-chip:hover{border-color:#a855f7;color:var(--text)}
+.ag-mode-toggle{margin-left:auto;display:flex;gap:3px}
+.ag-mode-btn{padding:3px 8px;border-radius:4px;font-size:10px;border:1px solid var(--border);background:var(--bg4);color:var(--text3);cursor:pointer;font-weight:600}
+.ag-mode-btn.active{background:#a855f7;color:#fff;border-color:#a855f7}
 .ai-panel{display:flex;flex-direction:column;height:100%;gap:0}
 .ai-actions{display:flex;flex-wrap:wrap;gap:5px;padding:10px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
 .ai-msgs{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-height:0}
@@ -408,6 +438,7 @@ pre.term .b{color:#90caf9}
         <div class="mtab" id="tabSum"  onclick="setMode('summary')">📊 Summary</div>
         <div class="mtab" id="tabAz"   onclick="setMode('analyze')" style="color:var(--purple)">🔬 Analyze</div>
         <div class="mtab" id="tabAI"   onclick="setMode('ai')" style="color:#f59e0b">🤖 AI</div>
+        <div class="mtab" id="tabAgent" onclick="setMode('agent')" style="color:#a855f7;border-color:#a855f7">⚡ Agent</div>
       </div>
       <div class="rsp"></div>
       <button class="btn btn-dl btn-sm" onclick="downloadSelectedEnum()">⬇ Enum.sh</button>
@@ -444,6 +475,36 @@ pre.term .b{color:#90caf9}
         <textarea class="ai-input" id="aiInput" placeholder="Ask AI about this scan… e.g. 'What is the highest risk port?'" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend()}"></textarea>
         <button class="btn btn-primary btn-sm" onclick="aiSend()" style="padding:0 12px">▶</button>
       </div>
+    <!-- ── Agent Panel ── -->
+    <div class="ag-panel" id="agentPanel" style="display:none">
+      <div class="ag-toolbar">
+        <button class="btn btn-secondary btn-sm" onclick="agQuick('run nmap scan on target')">🗺️ Nmap</button>
+        <button class="btn btn-secondary btn-sm" onclick="agQuick('SSH audit')">🔑 SSH</button>
+        <button class="btn btn-secondary btn-sm" onclick="agQuick('SMB check')">💾 SMB</button>
+        <button class="btn btn-secondary btn-sm" onclick="agQuick('Detect attack chains')">⛓️ Chains</button>
+        <button class="btn btn-secondary btn-sm" onclick="agQuick('Generate report')">📄 Report</button>
+        <div class="ag-mode-toggle">
+          <button class="ag-mode-btn active" id="agModeSingle" onclick="agSetMode('single')">Single</button>
+          <button class="ag-mode-btn" id="agModeMulti" onclick="agSetMode('multi')">Multi</button>
+        </div>
+        <button class="btn btn-secondary btn-sm" style="font-size:10px" onclick="agClear()">🗑</button>
+      </div>
+      <div class="ag-chips">
+        <span class="ag-chip" onclick="agQuick('Full pentest')">🎯 Full Pentest</span>
+        <span class="ag-chip" onclick="agQuick('Show critical findings')">🔍 Findings</span>
+        <span class="ag-chip" onclick="agQuick('SSL check port 443')">🔐 SSL</span>
+        <span class="ag-chip" onclick="agQuick('Memory search: open ports')">🧠 Memory</span>
+      </div>
+      <div class="ag-msgs" id="agMsgs">
+        <div class="ag-msg-agent">⚡ <b>AA-VAPT Agent</b> ready.<br>Target is auto-detected from the active scan — or type one manually.<br><span style="color:var(--text3)">Type any instruction in plain English.</span></div>
+      </div>
+      <div class="ag-input-row">
+        <textarea class="ag-input" id="agInput" rows="1"
+          placeholder="Type any instruction… e.g. 'pentest 192.168.1.10'"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();agSend()}"></textarea>
+        <button class="ag-send" id="agSendBtn" onclick="agSend()">▶</button>
+      </div>
+    </div>
     </div>
   </div>
 
@@ -1762,25 +1823,27 @@ function clearAll() {
 function setMode(m) {
   _mode = m;
   setModeTabActive();
-  // show/hide panels
-  const scriptOut = document.getElementById('scriptOut');
-  const aiPanel   = document.getElementById('aiPanel');
-  if (scriptOut) scriptOut.style.display = m === 'ai' ? 'none' : '';
-  if (aiPanel)   aiPanel.style.display   = m === 'ai' ? 'flex' : 'none';
+  const scriptOut   = document.getElementById('scriptOut');
+  const aiPanel     = document.getElementById('aiPanel');
+  const agentPanel  = document.getElementById('agentPanel');
+  if (scriptOut)  scriptOut.style.display  = (m === 'ai' || m === 'agent') ? 'none' : '';
+  if (aiPanel)    aiPanel.style.display    = m === 'ai'    ? 'flex' : 'none';
+  if (agentPanel) agentPanel.style.display = m === 'agent' ? 'flex' : 'none';
   if (m === 'summary') { renderSummary(); }
   else if (m === 'analyze') { document.getElementById('rtool').style.display = 'flex'; renderAnalyzeTab(); }
-  else if (m === 'ai') { document.getElementById('rtool').style.display = 'flex'; }
+  else if (m === 'ai' || m === 'agent') { document.getElementById('rtool').style.display = 'flex'; }
   else if (_activeHost) renderScripts();
+  if (m === 'agent') agAutoTarget();
 }
 
 function setModeTabActive() {
-  const modes = {enum:'active-enum', xpl:'active-xpl', summary:'active-sum', analyze:'active-az', ai:'active-ai'};
-  ['tabEnum','tabXpl','tabSum','tabAz','tabAI'].forEach(id => {
+  const modes = {enum:'active-enum', xpl:'active-xpl', summary:'active-sum', analyze:'active-az', ai:'active-ai', agent:'active-agent'};
+  ['tabEnum','tabXpl','tabSum','tabAz','tabAI','tabAgent'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     el.className = 'mtab';
   });
-  const map = {enum:'tabEnum', xpl:'tabXpl', summary:'tabSum', analyze:'tabAz', ai:'tabAI'};
+  const map = {enum:'tabEnum', xpl:'tabXpl', summary:'tabSum', analyze:'tabAz', ai:'tabAI', agent:'tabAgent'};
   const el = document.getElementById(map[_mode]);
   if (el) el.className = 'mtab ' + (modes[_mode] || '');
 }
@@ -2877,6 +2940,169 @@ function exploitDbSearch(svc, port) {
 (function initApp() {
   try { updateHistUI(); } catch(e) {}
 })();
+
+// ═══════════════════════════════════════════════════════════
+//  AA-VAPT AGENT INTEGRATION — nmap-pt.html
+// ═══════════════════════════════════════════════════════════
+const AG_API  = 'http://localhost:8000';
+let _agWs       = null;
+let _agSession  = null;
+let _agRunning  = false;
+let _agMode     = 'single';
+
+function agConnectWs() {
+  if (_agWs && _agWs.readyState < 2) return;
+  _agWs = new WebSocket('ws://localhost:8000/ws');
+  _agWs.onmessage = e => { try { agHandleEvent(JSON.parse(e.data)); } catch(_) {} };
+  _agWs.onclose = () => setTimeout(agConnectWs, 3000);
+}
+agConnectWs();
+
+function agAutoTarget() {
+  const inp = document.getElementById('agInput');
+  if (_activeHost && inp && !inp.value)
+    inp.value = 'pentest ' + _activeHost;
+}
+
+function agSetMode(m) {
+  _agMode = m;
+  document.getElementById('agModeSingle').className = 'ag-mode-btn' + (m==='single'?' active':'');
+  document.getElementById('agModeMulti').className  = 'ag-mode-btn' + (m==='multi'?' active':'');
+}
+
+function agQuick(txt) {
+  const inp = document.getElementById('agInput');
+  if (inp) inp.value = (_activeHost && !/\d{1,3}\.\d/.test(txt)) ? _activeHost+': '+txt : txt;
+  agSend();
+}
+
+async function agSend() {
+  const inp = document.getElementById('agInput');
+  let msg = inp ? inp.value.trim() : '';
+  if (!msg || _agRunning) return;
+  if (_activeHost && !/\d{1,3}\.\d/.test(msg)) msg = _activeHost + ': ' + msg;
+  if (inp) inp.value = '';
+  _agRunning = true;
+  document.getElementById('agSendBtn').disabled = true;
+  agAppend('user', msg);
+  agThinking('Agent soch raha hai…');
+  const ep = _agMode==='multi' ? '/api/agent/multi/run' : '/api/agent/run';
+  try {
+    const res = await fetch(AG_API+ep, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg})});
+    const d = await res.json();
+    if (d.session_id) _agSession = d.session_id;
+    else throw new Error(d.detail||'Failed');
+  } catch(err) {
+    agRemoveThinking(); _agRunning=false;
+    document.getElementById('agSendBtn').disabled=false;
+    agAppend('agent','❌ Error: '+agEsc(err.message));
+  }
+}
+
+function agHandleEvent(ev) {
+  if (ev.session_id && ev.session_id !== _agSession) return;
+  const btn = document.getElementById('agSendBtn');
+  switch(ev.event) {
+    case 'agent_start': case 'orchestrator_start':
+      agRemoveThinking();
+      agAppend('agent','🚀 <b>Started:</b> '+agEsc(ev.goal)+(ev.target?' → <code>'+agEsc(ev.target)+'</code>':''));
+      break;
+    case 'agent_thinking':
+      agThinking('Step '+(ev.step||'?')+' — thinking…'); break;
+    case 'agent_step':
+      agRemoveThinking(); agAddStep(ev); break;
+    case 'agent_tool_start':
+      agThinking('⚙️ Running <b>'+agEsc(ev.tool)+'</b>…'); break;
+    case 'agent_tool_done':
+      agRemoveThinking(); break;
+    case 'agent_observation':
+      agUpdateObs(ev.step, ev.observation_preview); break;
+    case 'agent_approval_required':
+      agRemoveThinking(); agShowHITL(ev); break;
+    case 'agent_approval_response':
+      agRemoveEl('ag-hitl-'+ev.approval_id);
+      agAppend('agent', ev.approved?'✅ Action <b>approved</b>':'🚫 Action <b>denied</b>'); break;
+    case 'agent_done': case 'orchestrator_done':
+      agRemoveThinking(); _agRunning=false; if(btn)btn.disabled=false;
+      agShowFinal(ev.final_answer||ev.final_report, ev.step_count||ev.total_steps, ev.finding_count||ev.total_findings); break;
+    case 'agent_error': case 'orchestrator_error':
+      agRemoveThinking(); _agRunning=false; if(btn)btn.disabled=false;
+      agAppend('agent','❌ <b>Error:</b> '+agEsc(ev.error)); break;
+  }
+}
+
+let _agThinkEl=null;
+
+function agAppend(role, html) {
+  const box=document.getElementById('agMsgs'); if(!box)return;
+  const el=document.createElement('div');
+  el.className=role==='user'?'ag-msg-user':'ag-msg-agent';
+  el.innerHTML=html; box.appendChild(el); box.scrollTop=box.scrollHeight; return el;
+}
+
+function agThinking(msg) {
+  agRemoveThinking();
+  const box=document.getElementById('agMsgs'); if(!box)return;
+  _agThinkEl=document.createElement('div');
+  _agThinkEl.className='ag-thinking';
+  _agThinkEl.innerHTML='<span>●</span> '+msg;
+  box.appendChild(_agThinkEl); box.scrollTop=box.scrollHeight;
+}
+
+function agRemoveThinking() { if(_agThinkEl){_agThinkEl.remove();_agThinkEl=null;} }
+
+function agAddStep(ev) {
+  const icons={nmap_scan:'🗺️',check_ssl:'🔐',ssh_audit:'🔑',nikto_scan:'🕷️',
+    smb_check:'💾',http_headers_check:'📋',detect_attack_chains:'⛓️',
+    generate_report:'📄',brute_force_ssh:'🔓',run_metasploit_module:'💥',finish:'✅'};
+  const icon=icons[ev.action]||'⚙️';
+  const box=document.getElementById('agMsgs'); if(!box)return;
+  const el=document.createElement('div'); el.className='ag-step'; el.id='ag-step-'+ev.step;
+  el.innerHTML='<div class="ag-step-hd" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'block\'?\'none\':\'block\'">'
+    +icon+' Step '+ev.step+' — '+agEsc(ev.action)+'()'
+    +'<span style="margin-left:auto;color:var(--text3);font-size:9px">'+agEsc((ev.thought||'').slice(0,60))+'</span></div>'
+    +'<div class="ag-step-body" id="ag-obs-'+ev.step+'">Args: '+agEsc(JSON.stringify(ev.action_input||{}))+'\nObs: ⏳</div>';
+  box.appendChild(el); box.scrollTop=box.scrollHeight;
+}
+
+function agUpdateObs(step, obs) {
+  const el=document.getElementById('ag-obs-'+step);
+  if(el){el.textContent='Obs: '+(obs||'');el.style.display='block';}
+}
+
+function agShowHITL(ev) {
+  const box=document.getElementById('agMsgs'); if(!box)return;
+  const el=document.createElement('div'); el.className='ag-hitl'; el.id='ag-hitl-'+ev.approval_id;
+  el.innerHTML='<div class="ag-hitl-title">⚠️ Approval Required: <code>'+agEsc(ev.tool_name)+'</code></div>'
+    +'<div style="font-size:10px;color:var(--text3)">'+agEsc(ev.reason||'')+'</div>'
+    +'<div class="ag-hitl-btns">'
+    +'<button class="ag-btn-ok" onclick="agRespond(\''+ev.approval_id+'\',true)">✅ Approve</button>'
+    +'<button class="ag-btn-no" onclick="agRespond(\''+ev.approval_id+'\',false)">🚫 Deny</button>'
+    +'</div>';
+  box.appendChild(el); box.scrollTop=box.scrollHeight;
+}
+
+async function agRespond(aid, approved) {
+  agRemoveEl('ag-hitl-'+aid);
+  await fetch(AG_API+'/api/agent/approve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({approval_id:aid,approved})});
+}
+
+function agShowFinal(answer, steps, findings) {
+  if(!answer)return;
+  const isReport=answer&&answer.length>400&&answer.includes('##');
+  agAppend('agent','✅ <b>Done</b> — '+(steps||0)+' steps, '+(findings||0)+' findings<br>'
+    +'<div class="ag-final"'+(isReport?' style="font-family:monospace;font-size:10px"':'')+'>'+agEsc(answer)+'</div>');
+}
+
+function agClear() {
+  _agSession=null;_agRunning=false;
+  document.getElementById('agSendBtn').disabled=false;
+  const box=document.getElementById('agMsgs');
+  if(box)box.innerHTML='<div class="ag-msg-agent">⚡ <b>Agent</b> cleared. Ready.</div>';
+}
+
+function agRemoveEl(id){const el=document.getElementById(id);if(el)el.remove();}
+function agEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 </script>
 </body>
 </html>

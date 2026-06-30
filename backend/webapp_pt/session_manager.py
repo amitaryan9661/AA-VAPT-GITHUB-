@@ -319,6 +319,269 @@ class SessionStore:
         return self.update_state(session_id, SessionState.ABORTED)
 
 
+# ─────────────────────────────────────────────
+# ENH-03: JSON-based session persistence
+# Sessions survive server restart — no sensitive credentials are persisted.
+# ─────────────────────────────────────────────
+
+import json as _json
+import os as _os
+
+_PERSIST_DIR = _os.path.join(_os.path.dirname(__file__), "..", "..", "history", "sessions")
+_PERSIST_FILE = _os.path.join(_PERSIST_DIR, "webapp_pt_sessions.json")
+
+
+def _save_sessions(sessions: dict):
+    """Persist sessions to disk (non-sensitive fields only)."""
+    try:
+        _os.makedirs(_PERSIST_DIR, exist_ok=True)
+        data = {}
+        for sid, s in sessions.items():
+            d = s.to_dict(include_sensitive=True)
+            # Strip sensitive fields before saving
+            d.pop("burp_api_key", None)
+            # Convert crawl_result keys — keep only metadata, not full HTML
+            if "crawl_result" in d and isinstance(d["crawl_result"], dict):
+                cr = d["crawl_result"]
+                d["crawl_result"] = {
+                    k: (v[:50] if isinstance(v, list) else v)
+                    for k, v in cr.items()
+                    if k not in ("raw_html_sample",)
+                }
+            data[sid] = d
+        with open(_PERSIST_FILE, "w", encoding="utf-8") as f:
+            _json.dump(data, f, default=str)
+    except Exception as e:
+        log.warning(f"Session persist save failed: {e}")
+
+
+def _load_sessions() -> dict:
+    """Load sessions from disk on startup."""
+    try:
+        if not _os.path.exists(_PERSIST_FILE):
+            return {}
+        with open(_PERSIST_FILE, encoding="utf-8") as f:
+            data = _json.load(f)
+        sessions = {}
+        for sid, d in data.items():
+            try:
+                s = PTSession(
+                    session_id=d["session_id"],
+                    target_url=d.get("target_url", ""),
+                    state=d.get("state", SessionState.CREATED),
+                    tester_name=d.get("tester_name", ""),
+                    burp_mode=d.get("burp_mode", "MANUAL"),
+                )
+                # Restore stats
+                s.tests_completed  = d.get("tests_completed", 0)
+                s.tests_vulnerable = d.get("tests_vulnerable", 0)
+                s.tests_skipped    = d.get("tests_skipped", 0)
+                s.tests_not_vuln   = d.get("tests_not_vuln", 0)
+                s.total_tests      = d.get("total_tests", 0)
+                s.current_test_index = d.get("current_test_index", 0)
+                s.findings         = d.get("findings", [])
+                s.checklist        = d.get("checklist", [])
+                s.crawl_result     = d.get("crawl_result", {})
+                sessions[sid] = s
+            except Exception as e:
+                log.warning(f"Could not restore session {sid}: {e}")
+        log.info(f"Loaded {len(sessions)} persisted WebApp PT sessions")
+        return sessions
+    except Exception as e:
+        log.warning(f"Session persist load failed: {e}")
+        return {}
+
+
+class SessionStore:
+    """
+    In-memory session store with JSON persistence (ENH-03).
+    Credentials are never written to disk.
+    """
+
+    def __init__(self):
+        self._sessions: dict[str, PTSession] = _load_sessions()
+
+    def _persist(self):
+        """Save sessions asynchronously — called after every mutation."""
+        _save_sessions(self._sessions)
+
+    def create(self, target_url: str, tester_name: str = "") -> PTSession:
+        sid = str(uuid.uuid4())
+        session = PTSession(
+            session_id=sid,
+            target_url=target_url,
+            tester_name=tester_name,
+        )
+        self._sessions[sid] = session
+        self._persist()
+        log.info(f"Session created: {sid} for {target_url}")
+        return session
+
+    def get(self, session_id: str) -> Optional[PTSession]:
+        return self._sessions.get(session_id)
+
+    def get_all(self) -> list[dict]:
+        return [s.to_dict() for s in self._sessions.values()]
+
+    def delete(self, session_id: str) -> bool:
+        if session_id in self._sessions:
+            del self._sessions[session_id]
+            self._persist()
+            log.info(f"Session deleted: {session_id}")
+            return True
+        return False
+
+    def update_state(self, session_id: str, new_state: SessionState) -> bool:
+        s = self.get(session_id)
+        if not s:
+            return False
+        s.state = new_state
+        s.update_timestamp()
+        self._persist()
+        log.info(f"Session {session_id}: state → {new_state}")
+        return True
+
+    def set_permissions(self, session_id: str, permissions: dict) -> bool:
+        s = self.get(session_id)
+        if not s:
+            return False
+        s.permissions.update(permissions)
+        s.update_timestamp()
+        self._persist()
+        return True
+
+    def set_crawl_result(self, session_id: str, crawl_result: dict) -> bool:
+        s = self.get(session_id)
+        if not s:
+            return False
+        s.crawl_result = crawl_result
+        s.crawl_completed_at = time.time()
+        s.update_timestamp()
+        self._persist()
+        return True
+
+    def set_checklist(self, session_id: str, tests: list) -> bool:
+        """Load applicable WSTG tests into session checklist."""
+        s = self.get(session_id)
+        if not s:
+            return False
+
+        from .wstg_checklist import get_applicable_tests
+        applicable = tests if tests else get_applicable_tests(s.crawl_result)
+
+        checklist = []
+        for t in applicable:
+            checklist.append({
+                "test_id": t["id"],
+                "name": t["name"],
+                "category": t["category"],
+                "severity": t["severity"],
+                "owasp_top10": t.get("owasp_top10", []),
+                "status": TestResult.PENDING,
+                "result_notes": "",
+                "evidence": "",
+                "payload_used": "",
+                "burp_request": "",
+                "ai_guidance": "",
+                "started_at": 0.0,
+                "completed_at": 0.0,
+                "h1_pattern_ids": t.get("h1_pattern_ids", []),
+                # Include full test data for UI rendering
+                "manual_steps": t.get("manual_steps", []),
+                "payloads": t.get("payloads", []),
+                "expected_vulnerable": t.get("expected_vulnerable", ""),
+                "expected_safe": t.get("expected_safe", ""),
+                "remediation": t.get("remediation", ""),
+                "burp_applicable": t.get("burp_applicable", False),
+            })
+
+        s.checklist = checklist
+        s.total_tests = len(checklist)
+        s.current_test_index = 0
+        s.state = SessionState.CHECKLIST_READY
+        s.update_timestamp()
+        self._persist()
+        log.info(f"Session {session_id}: checklist loaded ({len(checklist)} tests)")
+        return True
+
+    def start_test(self, session_id: str) -> Optional[dict]:
+        """Mark current test as started and return it."""
+        s = self.get(session_id)
+        if not s or s.current_test_index >= s.total_tests:
+            return None
+        s.state = SessionState.TESTING
+        test = s.checklist[s.current_test_index]
+        test["started_at"] = time.time()
+        s.update_timestamp()
+        return test
+
+    def submit_result(self, session_id: str, result: str, notes: str = "",
+                      evidence: str = "", payload: str = "", burp_req: str = "") -> dict:
+        """Submit result for current test, advance to next."""
+        s = self.get(session_id)
+        if not s or s.current_test_index >= s.total_tests:
+            return {"error": "No active test"}
+
+        test = s.checklist[s.current_test_index]
+        test["status"] = result
+        test["result_notes"] = notes
+        test["evidence"] = evidence
+        test["payload_used"] = payload
+        test["burp_request"] = burp_req
+        test["completed_at"] = time.time()
+
+        # Update stats
+        s.tests_completed += 1
+        if result == TestResult.VULNERABLE:
+            s.tests_vulnerable += 1
+            s.findings.append({
+                "test_id": test["test_id"],
+                "name": test["name"],
+                "severity": test["severity"],
+                "category": test["category"],
+                "notes": notes,
+                "evidence": evidence,
+                "payload": payload,
+                "remediation": test.get("remediation", ""),
+                "owasp_top10": test.get("owasp_top10", []),
+                "timestamp": time.time(),
+            })
+        elif result == TestResult.SKIPPED:
+            s.tests_skipped += 1
+        elif result == TestResult.NOT_VULN:
+            s.tests_not_vuln += 1
+
+        # Advance
+        s.current_test_index += 1
+        s.update_timestamp()
+        self._persist()
+
+        # Check completion
+        if s.current_test_index >= s.total_tests:
+            s.state = SessionState.COMPLETED
+            log.info(f"Session {session_id}: COMPLETED — {s.tests_vulnerable} findings")
+            return {"completed": True, "session": s.to_dict(include_sensitive=False)}
+
+        next_test = s.checklist[s.current_test_index]
+        return {"completed": False, "next_test": next_test}
+
+    def skip_test(self, session_id: str, reason: str = "Skipped by tester") -> dict:
+        return self.submit_result(session_id, TestResult.SKIPPED, notes=reason)
+
+    def set_ai_guidance(self, session_id: str, test_id: str, guidance: str) -> bool:
+        s = self.get(session_id)
+        if not s:
+            return False
+        for test in s.checklist:
+            if test["test_id"] == test_id:
+                test["ai_guidance"] = guidance
+                return True
+        return False
+
+    def abort(self, session_id: str) -> bool:
+        return self.update_state(session_id, SessionState.ABORTED)
+
+
 # Global singleton
 _store: Optional[SessionStore] = None
 

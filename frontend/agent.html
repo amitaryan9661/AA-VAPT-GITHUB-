@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AA-VAPT — AI Agent</title>
+<style>
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #1c2128;
+    --border: #30363d; --green: #3fb950; --red: #f85149;
+    --yellow: #d29922; --blue: #58a6ff; --purple: #bc8cff;
+    --orange: #ffa657; --text: #e6edf3; --muted: #8b949e;
+    --critical: #f85149; --high: #ffa657;
+    --medium: #d29922; --low: #3fb950; --info: #58a6ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Header */
+  header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .logo { font-size: 18px; font-weight: 700; color: var(--green); }
+  .logo span { color: var(--text); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-left: auto; }
+  .status-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .header-status { font-size: 12px; color: var(--muted); }
+
+  /* Layout */
+  .app { display: flex; flex: 1; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar { width: 260px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
+  .sidebar-header { padding: 12px 16px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border); }
+  .session-list { flex: 1; overflow-y: auto; padding: 8px; }
+  .session-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; margin-bottom: 4px; transition: all .15s; }
+  .session-item:hover { background: var(--bg3); border-color: var(--border); }
+  .session-item.active { background: var(--bg3); border-color: var(--blue); }
+  .session-goal { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .session-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .session-status { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; }
+  .session-status.running { background: rgba(58,166,255,.15); color: var(--blue); }
+  .session-status.completed { background: rgba(63,185,80,.15); color: var(--green); }
+  .session-status.error { background: rgba(248,81,73,.15); color: var(--red); }
+
+  /* Main chat area */
+  .chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .messages::-webkit-scrollbar { width: 6px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Message bubbles */
+  .msg { display: flex; gap: 12px; max-width: 900px; animation: fadeIn .2s ease; }
+  @keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform:none; } }
+  .msg.user { flex-direction: row-reverse; align-self: flex-end; }
+  .msg-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .msg.user .msg-avatar { background: var(--blue); }
+  .msg.agent .msg-avatar { background: var(--green); }
+  .msg-body { flex: 1; }
+  .msg-bubble { padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
+  .msg.user .msg-bubble { background: var(--blue); color: #fff; border-radius: 12px 0 12px 12px; }
+  .msg.agent .msg-bubble { background: var(--bg2); border: 1px solid var(--border); border-radius: 0 12px 12px 12px; }
+  .msg-time { font-size: 10px; color: var(--muted); margin-top: 4px; }
+  .msg.user .msg-time { text-align: right; }
+
+  /* Agent step cards */
+  .step-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; margin: 4px 0; overflow: hidden; }
+  .step-header { padding: 8px 12px; display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .step-header:hover { background: var(--bg3); }
+  .step-icon { font-size: 14px; }
+  .step-label { font-size: 12px; font-weight: 600; }
+  .step-tool { font-size: 11px; color: var(--muted); margin-left: auto; font-family: monospace; }
+  .step-body { padding: 8px 12px; font-size: 12px; border-top: 1px solid var(--border); display: none; }
+  .step-body.open { display: block; }
+  .step-thought { color: var(--muted); font-style: italic; margin-bottom: 6px; }
+  .step-obs { background: var(--bg); border-radius: 4px; padding: 8px; font-family: monospace; font-size: 11px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+
+  /* Thinking indicator */
+  .thinking { display: flex; align-items: center; gap: 8px; padding: 10px 16px; color: var(--muted); font-size: 13px; }
+  .dots { display: flex; gap: 4px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); animation: bounce .8s infinite; }
+  .dot:nth-child(2) { animation-delay: .15s; }
+  .dot:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 0%,60%,100% { transform: none; } 30% { transform: translateY(-6px); } }
+
+  /* HITL Approval card */
+  .hitl-card { background: var(--bg2); border: 2px solid var(--yellow); border-radius: 10px; padding: 16px; max-width: 500px; }
+  .hitl-title { font-size: 14px; font-weight: 700; color: var(--yellow); margin-bottom: 8px; }
+  .hitl-tool { font-family: monospace; background: var(--bg); padding: 6px 10px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; }
+  .hitl-reason { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .hitl-args { font-family: monospace; font-size: 11px; background: var(--bg); padding: 8px; border-radius: 4px; margin-bottom: 12px; max-height: 100px; overflow-y: auto; white-space: pre-wrap; }
+  .hitl-btns { display: flex; gap: 8px; }
+  .btn-approve { background: var(--green); color: #000; border: none; padding: 8px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; }
+  .btn-deny { background: var(--red); color: #fff; border: none; padding: 8px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; }
+  .hitl-timer { font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+  /* Final answer */
+  .final-answer { background: linear-gradient(135deg, rgba(63,185,80,.1), rgba(58,166,255,.1)); border: 1px solid var(--green); border-radius: 10px; padding: 16px; }
+  .final-answer pre { white-space: pre-wrap; font-size: 13px; font-family: inherit; line-height: 1.7; }
+
+  /* Report block */
+  .report-block { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; font-size: 12px; max-height: 400px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; }
+  .report-copy { float: right; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-bottom: 8px; }
+
+  /* Badge */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+  .badge.critical { background: rgba(248,81,73,.2); color: var(--critical); }
+  .badge.high { background: rgba(255,166,87,.2); color: var(--high); }
+  .badge.medium { background: rgba(210,153,34,.2); color: var(--medium); }
+  .badge.low { background: rgba(63,185,80,.2); color: var(--low); }
+  .badge.info { background: rgba(88,166,255,.2); color: var(--info); }
+
+  /* Findings summary */
+  .findings-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+  .finding-pill { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 11px; }
+
+  /* Input area */
+  .input-area { padding: 16px 20px; background: var(--bg2); border-top: 1px solid var(--border); flex-shrink: 0; }
+  .input-row { display: flex; gap: 10px; align-items: flex-end; }
+  .input-wrap { flex: 1; position: relative; }
+  textarea { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; color: var(--text); padding: 12px 16px; font-size: 14px; resize: none; outline: none; font-family: inherit; min-height: 48px; max-height: 150px; line-height: 1.5; transition: border-color .15s; }
+  textarea:focus { border-color: var(--blue); }
+  textarea::placeholder { color: var(--muted); }
+  .send-btn { background: var(--blue); border: none; color: #fff; width: 44px; height: 44px; border-radius: 10px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s; }
+  .send-btn:hover { background: #79b8ff; }
+  .send-btn:disabled { background: var(--border); cursor: not-allowed; }
+  .input-hints { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .hint-chip { background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: 11px; color: var(--muted); cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .hint-chip:hover { border-color: var(--blue); color: var(--text); }
+  .hint-chip.multi { border-color: var(--purple); color: var(--purple); }
+  .hint-chip.multi:hover { background: rgba(188,140,255,.1); }
+
+  /* Multi-agent panel */
+  .multi-agent-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin: 4px 0; width: 100%; }
+  .ma-header { padding: 10px 14px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+  .ma-title { font-size: 13px; font-weight: 700; color: var(--purple); }
+  .ma-phases { display: flex; gap: 6px; margin-left: auto; }
+  .phase-badge { font-size: 10px; padding: 2px 8px; border-radius: 4px; background: var(--bg3); color: var(--muted); border: 1px solid var(--border); }
+  .phase-badge.active { border-color: var(--blue); color: var(--blue); }
+  .phase-badge.done { border-color: var(--green); color: var(--green); }
+  .agent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
+  .agent-cell { background: var(--bg2); padding: 10px 12px; min-height: 80px; }
+  .agent-cell.full { grid-column: span 2; }
+  .agent-name { font-size: 11px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+  .agent-status { font-size: 10px; color: var(--muted); margin-bottom: 6px; }
+  .agent-log { font-size: 10px; font-family: monospace; color: var(--muted); max-height: 80px; overflow-y: auto; }
+  .agent-log .log-line { padding: 1px 0; border-bottom: 1px solid rgba(255,255,255,.03); }
+  .agent-progress { height: 2px; background: var(--border); border-radius: 1px; margin-top: 6px; }
+  .agent-progress-bar { height: 100%; border-radius: 1px; background: var(--blue); width: 0%; transition: width .3s; }
+  .agent-running { animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  /* Right panel */
+  .right-panel { width: 280px; background: var(--bg2); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  .panel-tab-bar { display: flex; border-bottom: 1px solid var(--border); }
+  .panel-tab { flex: 1; padding: 10px; text-align: center; font-size: 11px; font-weight: 600; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; transition: all .15s; }
+  .panel-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .panel-content { flex: 1; overflow-y: auto; padding: 12px; display: none; }
+  .panel-content.active { display: block; }
+  .tool-item { padding: 6px 8px; border-radius: 4px; font-size: 11px; border: 1px solid var(--border); margin-bottom: 4px; }
+  .tool-name { font-family: monospace; color: var(--blue); }
+  .tool-cat { font-size: 10px; color: var(--muted); }
+  .tool-danger { color: var(--red); font-size: 10px; }
+  .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .stat-val { font-weight: 700; color: var(--blue); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Responsive */
+  @media (max-width: 900px) { .sidebar, .right-panel { display: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">AA-VAPT <span>Agent</span></div>
+  <div style="font-size:12px;color:var(--muted);margin-left:8px">Autonomous Pentest AI</div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+    <span class="header-status" id="hdrStatus">Connecting…</span>
+    <div class="status-dot" id="statusDot"></div>
+  </div>
+</header>
+
+<div class="app">
+  <!-- Sidebar: sessions -->
+  <aside class="sidebar">
+    <div class="sidebar-header">Sessions</div>
+    <div class="session-list" id="sessionList">
+      <div style="padding:16px;color:var(--muted);font-size:12px">No sessions yet</div>
+    </div>
+    <div style="padding:10px;border-top:1px solid var(--border)">
+      <button onclick="newChat()" style="width:100%;background:var(--blue);border:none;color:#fff;padding:8px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">+ New Session</button>
+    </div>
+  </aside>
+
+  <!-- Main chat -->
+  <main class="chat-area">
+    <div class="messages" id="messages">
+      <!-- Welcome message -->
+      <div class="msg agent">
+        <div class="msg-avatar">🤖</div>
+        <div class="msg-body">
+          <div class="msg-bubble">
+            <strong>AA-VAPT Agent ready.</strong><br><br>
+            Type any instruction in plain English — the agent will plan and execute it.<br><br>
+            <b>Examples:</b><br>
+            • <code>pentest 192.168.1.50</code><br>
+            • <code>SSL check port 443 on 10.0.0.5</code><br>
+            • <code>Detect attack chains</code><br>
+            • <code>What are the critical findings?</code><br>
+            • <code>Generate a pentest report</code><br>
+            • <code>What are the high severity vulnerabilities?</code>
+          </div>
+          <div class="msg-time">Now</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-row">
+        <div class="input-wrap">
+          <textarea id="msgInput" placeholder="Type any instruction… e.g. 'pentest 192.168.1.10' or 'generate report'" rows="1" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
+        </div>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send (Enter)">➤</button>
+      </div>
+      <div class="input-hints">
+        <span class="hint-chip" onclick="setInput('pentest 192.168.1.1')">🎯 Full Pentest</span>
+        <span class="hint-chip multi" onclick="sendMultiAgent('pentest 192.168.1.1')">🤖 Multi-Agent</span>
+        <span class="hint-chip" onclick="setInput('Detect attack chains')">⛓️ Attack Chains</span>
+        <span class="hint-chip" onclick="setInput('SSL check port 443')">🔐 SSL Check</span>
+        <span class="hint-chip" onclick="setInput('Show critical findings')">🔍 Findings</span>
+        <span class="hint-chip" onclick="setInput('Generate pentest report')">📄 Report</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- Right panel -->
+  <aside class="right-panel">
+    <div class="panel-tab-bar">
+      <div class="panel-tab active" onclick="switchTab('tools',this)">Tools</div>
+      <div class="panel-tab" onclick="switchTab('stats',this)">Stats</div>
+      <div class="panel-tab" onclick="switchTab('findings',this)">Findings</div>
+    </div>
+    <div class="panel-content active" id="tab-tools"></div>
+    <div class="panel-content" id="tab-stats">
+      <div class="stat-row"><span>Sessions</span><span class="stat-val" id="statSessions">0</span></div>
+      <div class="stat-row"><span>Steps taken</span><span class="stat-val" id="statSteps">0</span></div>
+      <div class="stat-row"><span>Findings</span><span class="stat-val" id="statFindings">0</span></div>
+      <div class="stat-row"><span>Ollama</span><span class="stat-val" id="statOllama">—</span></div>
+      <div class="stat-row"><span>Model</span><span class="stat-val" id="statModel" style="font-size:10px">—</span></div>
+    </div>
+    <div class="panel-content" id="tab-findings">
+      <div id="findingsList" style="color:var(--muted);font-size:12px">No findings yet</div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let ws = null;
+let currentSessionId = null;
+let agentRunning = false;
+let thinkingEl = null;
+let stepCount = 0;
+let allFindings = [];
+
+// ── Boot ──────────────────────────────────────────────────────
+window.onload = async () => {
+  connectWS();
+  await loadTools();
+  await loadStatus();
+  await loadSessions();
+  setInterval(loadSessions, 10000);
+  setInterval(loadStatus, 15000);
+};
+
+// ── WebSocket ─────────────────────────────────────────────────
+function connectWS() {
+  ws = new WebSocket(`ws://localhost:8000/ws`);
+  ws.onopen = () => {
+    setStatus(true);
+    ws.send('ping');
+  };
+  ws.onmessage = e => {
+    try { handleEvent(JSON.parse(e.data)); } catch(_) {}
+  };
+  ws.onclose = () => {
+    setStatus(false);
+    setTimeout(connectWS, 3000);
+  };
+  ws.onerror = () => setStatus(false);
+}
+
+function setStatus(online) {
+  document.getElementById('statusDot').className = 'status-dot' + (online ? ' online' : '');
+  document.getElementById('hdrStatus').textContent = online ? 'Connected' : 'Reconnecting…';
+}
+
+// ── Multi-agent state ─────────────────────────────────────────
+let multiCardEl = null;
+const agentColors = {recon:'var(--blue)',web:'var(--green)',exploit:'var(--red)',report:'var(--purple)'};
+
+// ── Agent event handler ───────────────────────────────────────
+function handleEvent(ev) {
+  const sid = ev.session_id;
+  if (sid && sid !== currentSessionId) return; // ignore other sessions
+
+  // Multi-agent orchestrator events
+  switch (ev.event) {
+    case 'orchestrator_start':
+      removeThinking();
+      multiCardEl = createMultiAgentCard(ev);
+      return;
+    case 'orchestrator_phase':
+      updatePhase(ev.phase);
+      return;
+    case 'orchestrator_done':
+      removeThinking();
+      agentRunning = false;
+      document.getElementById('sendBtn').disabled = false;
+      finalizeMultiCard(ev);
+      showFinalAnswer(ev.final_report, ev.total_steps, ev.total_findings);
+      loadSessions();
+      return;
+    case 'orchestrator_error':
+      removeThinking();
+      agentRunning = false;
+      document.getElementById('sendBtn').disabled = false;
+      appendAgentCard(`❌ <b>Multi-Agent Error:</b> ${esc(ev.error)}`, 'error');
+      return;
+  }
+
+  // Per-agent events — update agent cell
+  if (ev.agent && multiCardEl) {
+    updateAgentCell(ev);
+    // Don't return — also handle normal step rendering below
+  }
+
+  switch (ev.event) {
+    case 'agent_start':
+      removeThinking();
+      appendAgentCard(`🚀 <b>Starting:</b> ${esc(ev.goal)}${ev.target ? ` → <code>${esc(ev.target)}</code>` : ''}`, 'info');
+      if (ev.planned_tools?.length)
+        appendAgentCard(`📋 <b>Plan:</b> ${ev.planned_tools.map(t => `<code>${t}</code>`).join(' → ')}`, 'info');
+      break;
+
+    case 'agent_thinking':
+      showThinking(`Step ${ev.step} — Agent is thinking…`);
+      break;
+
+    case 'agent_step':
+      removeThinking();
+      addStep(ev.step, ev.thought, ev.action, ev.action_input);
+      break;
+
+    case 'agent_tool_start':
+      showThinking(`⚙️ Running <b>${esc(ev.tool)}</b>…`);
+      break;
+
+    case 'agent_tool_done':
+      removeThinking();
+      break;
+
+    case 'agent_observation':
+      updateStepObs(ev.step, ev.observation_preview);
+      break;
+
+    case 'agent_approval_required':
+      removeThinking();
+      showHITL(ev);
+      break;
+
+    case 'agent_approval_response':
+      removeHITL(ev.approval_id);
+      appendAgentCard(
+        ev.approved
+          ? `✅ Action <code>${esc(ev.tool_name||'')}</code> <b style="color:var(--green)">APPROVED</b>`
+          : `🚫 Action <b style="color:var(--red)">DENIED</b> — skipped.`,
+        ev.approved ? 'success' : 'warn'
+      );
+      break;
+
+    case 'agent_done':
+      removeThinking();
+      agentRunning = false;
+      document.getElementById('sendBtn').disabled = false;
+      showFinalAnswer(ev.final_answer, ev.step_count, ev.finding_count);
+      loadSessions();
+      break;
+
+    case 'agent_error':
+      removeThinking();
+      agentRunning = false;
+      document.getElementById('sendBtn').disabled = false;
+      appendAgentCard(`❌ <b>Error:</b> ${esc(ev.error)}`, 'error');
+      break;
+  }
+}
+
+// ── Send message ──────────────────────────────────────────────
+async function sendMessage() {
+  const input = document.getElementById('msgInput');
+  const msg = input.value.trim();
+  if (!msg || agentRunning) return;
+
+  input.value = '';
+  autoResize(input);
+  agentRunning = true;
+  stepCount = 0;
+  document.getElementById('sendBtn').disabled = true;
+
+  // User bubble
+  appendUserMsg(msg);
+
+  // Start agent
+  try {
+    const res = await fetch(`${API}/api/agent/run`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({message: msg})
+    });
+    const data = await res.json();
+    if (data.session_id) {
+      currentSessionId = data.session_id;
+      updateSessionsList(data);
+    } else {
+      throw new Error(data.detail || 'Unknown error');
+    }
+  } catch (err) {
+    agentRunning = false;
+    document.getElementById('sendBtn').disabled = false;
+    appendAgentCard(`❌ <b>Failed:</b> ${esc(err.message)}`, 'error');
+  }
+}
+
+function onKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function setInput(txt) {
+  const el = document.getElementById('msgInput');
+  el.value = txt;
+  el.focus();
+  autoResize(el);
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 150) + 'px';
+}
+
+// ── DOM helpers ───────────────────────────────────────────────
+function appendUserMsg(text) {
+  const msgs = document.getElementById('messages');
+  const el = document.createElement('div');
+  el.className = 'msg user';
+  el.innerHTML = `
+    <div class="msg-avatar">👤</div>
+    <div class="msg-body">
+      <div class="msg-bubble">${esc(text)}</div>
+      <div class="msg-time">${now()}</div>
+    </div>`;
+  msgs.appendChild(el);
+  scrollBottom();
+}
+
+function appendAgentCard(html, type='info') {
+  const colors = {info:'var(--blue)',success:'var(--green)',warn:'var(--yellow)',error:'var(--red)'};
+  const msgs = document.getElementById('messages');
+  const el = document.createElement('div');
+  el.className = 'msg agent';
+  el.innerHTML = `
+    <div class="msg-avatar" style="background:${colors[type]||'var(--blue)'}">🤖</div>
+    <div class="msg-body">
+      <div class="msg-bubble">${html}</div>
+      <div class="msg-time">${now()}</div>
+    </div>`;
+  msgs.appendChild(el);
+  scrollBottom();
+  return el;
+}
+
+function addStep(num, thought, action, args) {
+  stepCount = num;
+  const msgs = document.getElementById('messages');
+  const icons = {nmap_scan:'🗺️',check_ssl:'🔐',ssh_audit:'🔑',nikto_scan:'🕷️',
+    smb_check:'💾',http_headers_check:'📋',detect_attack_chains:'⛓️',
+    analyze_finding:'🔬',search_memory:'🧠',generate_report:'📄',
+    get_loaded_findings:'📊',epss_check:'🎯',brute_force_ssh:'🔓',
+    run_metasploit_module:'💥',think:'💭',finish:'✅',ask_human:'❓'};
+  const icon = icons[action] || '⚙️';
+  const card = document.createElement('div');
+  card.className = 'msg agent';
+  card.id = `step-${num}`;
+  const argsStr = JSON.stringify(args || {}, null, 2);
+  card.innerHTML = `
+    <div class="msg-avatar" style="background:var(--purple)">🤖</div>
+    <div class="msg-body" style="width:100%">
+      <div class="step-card">
+        <div class="step-header" onclick="toggleStep(${num})">
+          <span class="step-icon">${icon}</span>
+          <span class="step-label">Step ${num}</span>
+          <span class="step-tool">${action}()</span>
+        </div>
+        <div class="step-body" id="stepbody-${num}">
+          ${thought ? `<div class="step-thought">💭 ${esc(thought)}</div>` : ''}
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Args:</div>
+          <div class="step-obs">${esc(argsStr)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px;margin-bottom:4px">Observation:</div>
+          <div class="step-obs" id="obs-${num}">⏳ Running…</div>
+        </div>
+      </div>
+      <div class="msg-time">${now()}</div>
+    </div>`;
+  msgs.appendChild(card);
+  scrollBottom();
+}
+
+function updateStepObs(num, obs) {
+  const el = document.getElementById(`obs-${num}`);
+  if (el) {
+    el.textContent = obs || '(empty)';
+    // Auto-open if it has content
+    const body = document.getElementById(`stepbody-${num}`);
+    if (body && !body.classList.contains('open')) body.classList.add('open');
+  }
+}
+
+function toggleStep(num) {
+  const body = document.getElementById(`stepbody-${num}`);
+  if (body) body.classList.toggle('open');
+}
+
+function showThinking(msg) {
+  removeThinking();
+  const msgs = document.getElementById('messages');
+  thinkingEl = document.createElement('div');
+  thinkingEl.id = 'thinking-indicator';
+  thinkingEl.className = 'msg agent';
+  thinkingEl.innerHTML = `
+    <div class="msg-avatar" style="background:var(--muted)">🤖</div>
+    <div class="msg-body">
+      <div class="thinking">
+        <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <span>${msg}</span>
+      </div>
+    </div>`;
+  msgs.appendChild(thinkingEl);
+  scrollBottom();
+}
+
+function removeThinking() {
+  if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
+}
+
+function showHITL(ev) {
+  const msgs = document.getElementById('messages');
+  const card = document.createElement('div');
+  card.className = 'msg agent';
+  card.id = `hitl-${ev.approval_id}`;
+  const argsHtml = JSON.stringify(ev.args || {}, null, 2);
+  card.innerHTML = `
+    <div class="msg-avatar" style="background:var(--yellow)">⚠️</div>
+    <div class="msg-body">
+      <div class="hitl-card">
+        <div class="hitl-title">⚠️ Human Approval Required</div>
+        <div class="hitl-tool">${esc(ev.tool_name)}</div>
+        <div class="hitl-reason">${esc(ev.reason || 'This is a dangerous action.')}</div>
+        <div class="hitl-args">${esc(argsHtml)}</div>
+        <div class="hitl-btns">
+          <button class="btn-approve" onclick="respondHITL('${ev.approval_id}',true)">✅ Approve</button>
+          <button class="btn-deny" onclick="respondHITL('${ev.approval_id}',false)">🚫 Deny</button>
+        </div>
+        <div class="hitl-timer" id="hitl-timer-${ev.approval_id}">Expires in 120s</div>
+      </div>
+      <div class="msg-time">${now()}</div>
+    </div>`;
+  msgs.appendChild(card);
+  scrollBottom();
+  // Countdown
+  let secs = 120;
+  const iv = setInterval(() => {
+    secs--;
+    const t = document.getElementById(`hitl-timer-${ev.approval_id}`);
+    if (t) t.textContent = `Expires in ${secs}s`;
+    if (secs <= 0) { clearInterval(iv); removeHITL(ev.approval_id); }
+  }, 1000);
+}
+
+function removeHITL(aid) {
+  const el = document.getElementById(`hitl-${aid}`);
+  if (el) el.remove();
+}
+
+async function respondHITL(approvalId, approved) {
+  removeHITL(approvalId);
+  await fetch(`${API}/api/agent/approve`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({approval_id: approvalId, approved})
+  });
+}
+
+function showFinalAnswer(answer, steps, findings) {
+  const msgs = document.getElementById('messages');
+  const card = document.createElement('div');
+  card.className = 'msg agent';
+
+  // Check if it's a markdown report
+  const isReport = answer && answer.includes('# ') && answer.length > 500;
+
+  card.innerHTML = `
+    <div class="msg-avatar" style="background:var(--green)">🤖</div>
+    <div class="msg-body" style="width:100%">
+      <div class="msg-bubble">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
+          ✅ Done — ${steps} steps, ${findings} findings
+        </div>
+        <div class="final-answer">
+          ${isReport
+            ? `<button class="report-copy" onclick="copyReport(this)">📋 Copy</button>
+               <div class="report-block" id="reportBlock">${esc(answer)}</div>`
+            : `<pre>${esc(answer)}</pre>`}
+        </div>
+      </div>
+      <div class="msg-time">${now()}</div>
+    </div>`;
+  msgs.appendChild(card);
+  scrollBottom();
+
+  // Update findings panel
+  if (findings > 0) loadSessionFindings();
+}
+
+function copyReport(btn) {
+  const block = btn.nextElementSibling;
+  navigator.clipboard.writeText(block.textContent);
+  btn.textContent = '✅ Copied!';
+  setTimeout(() => btn.textContent = '📋 Copy', 2000);
+}
+
+// ── Panel ─────────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel-content').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+async function loadTools() {
+  try {
+    const res = await fetch(`${API}/api/agent/tools`);
+    const data = await res.json();
+    const el = document.getElementById('tab-tools');
+    el.innerHTML = data.tools.map(t => `
+      <div class="tool-item">
+        <div class="tool-name">${t.name}</div>
+        <div class="tool-cat">${t.category} ${t.dangerous ? '<span class="tool-danger">⚠ DANGEROUS</span>':''}</div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+async function loadStatus() {
+  try {
+    const res = await fetch(`${API}/api/status`);
+    const d = await res.json();
+    document.getElementById('statOllama').textContent = d.ollama?.running ? '🟢 Online' : '🔴 Offline';
+    document.getElementById('statModel').textContent = d.ollama?.active || '—';
+  } catch(e) {}
+}
+
+async function loadSessions() {
+  try {
+    const res = await fetch(`${API}/api/agent/sessions`);
+    const data = await res.json();
+    const sessions = data.sessions || [];
+    document.getElementById('statSessions').textContent = sessions.length;
+    const totalSteps = sessions.reduce((a,s) => a + (s.step_count||0), 0);
+    const totalFindings = sessions.reduce((a,s) => a + (s.finding_count||0), 0);
+    document.getElementById('statSteps').textContent = totalSteps;
+    document.getElementById('statFindings').textContent = totalFindings;
+
+    const el = document.getElementById('sessionList');
+    if (!sessions.length) {
+      el.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:12px">No sessions yet</div>';
+      return;
+    }
+    el.innerHTML = sessions.reverse().map(s => `
+      <div class="session-item ${s.session_id === currentSessionId ? 'active':''}"
+           onclick="loadSession('${s.session_id}')">
+        <div class="session-goal">${esc(s.goal)}</div>
+        <div class="session-meta">
+          <span class="session-status ${s.status}">${s.status}</span>
+          · ${s.step_count} steps · ${s.finding_count} findings
+        </div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+async function loadSession(sid) {
+  currentSessionId = sid;
+  await loadSessions();
+}
+
+async function loadSessionFindings() {
+  if (!currentSessionId) return;
+  try {
+    const res = await fetch(`${API}/api/agent/session/${currentSessionId}`);
+    const sess = await res.json();
+    const findings = sess.findings || [];
+    const el = document.getElementById('findingsList');
+    if (!findings.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:12px">No findings yet</div>';
+      return;
+    }
+    el.innerHTML = findings.map(f => `
+      <div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:11px">
+        <span class="badge ${f.severity||'info'}">${(f.severity||'info').toUpperCase()}</span>
+        <div style="margin-top:2px">${esc(f.name||'?')}</div>
+        <div style="color:var(--muted)">${esc(f.host||'')}${f.port ? ':'+f.port : ''}</div>
+      </div>`).join('');
+  } catch(e) {}
+}
+
+function updateSessionsList(data) {
+  loadSessions();
+}
+
+// ── Multi-agent send ──────────────────────────────────────────
+async function sendMultiAgent(prefill) {
+  const input = document.getElementById('msgInput');
+  const msg = prefill || input.value.trim();
+  if (!msg || agentRunning) return;
+
+  input.value = '';
+  autoResize(input);
+  agentRunning = true;
+  multiCardEl = null;
+  document.getElementById('sendBtn').disabled = true;
+
+  appendUserMsg('🤖 [Multi-Agent] ' + msg);
+
+  try {
+    const res = await fetch(`${API}/api/agent/multi/run`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({message: msg})
+    });
+    const data = await res.json();
+    if (data.session_id) {
+      currentSessionId = data.session_id;
+      loadSessions();
+    } else throw new Error(data.detail || 'Unknown error');
+  } catch(err) {
+    agentRunning = false;
+    document.getElementById('sendBtn').disabled = false;
+    appendAgentCard(`❌ <b>Failed:</b> ${esc(err.message)}`, 'error');
+  }
+}
+
+function createMultiAgentCard(ev) {
+  const msgs = document.getElementById('messages');
+  const el = document.createElement('div');
+  el.className = 'msg agent';
+  el.id = 'multi-agent-card';
+  el.innerHTML = `
+    <div class="msg-avatar" style="background:var(--purple)">🤖</div>
+    <div class="msg-body" style="width:100%">
+      <div class="multi-agent-card">
+        <div class="ma-header">
+          <span style="font-size:16px">🤖</span>
+          <div>
+            <div class="ma-title">Multi-Agent Pentest</div>
+            <div style="font-size:11px;color:var(--muted)">${esc(ev.goal)}</div>
+          </div>
+          <div class="ma-phases" id="ma-phases">
+            <span class="phase-badge" id="phase-1">Phase 1: Recon+Web</span>
+            <span class="phase-badge" id="phase-2">Phase 2: Exploit</span>
+            <span class="phase-badge" id="phase-3">Phase 3: Report</span>
+          </div>
+        </div>
+        <div class="agent-grid" id="agent-grid">
+          <div class="agent-cell" id="cell-recon">
+            <div class="agent-name"><span>🗺️</span> ReconAgent</div>
+            <div class="agent-status" id="status-recon">⏳ Waiting…</div>
+            <div class="agent-log" id="log-recon"></div>
+            <div class="agent-progress"><div class="agent-progress-bar" id="pb-recon"></div></div>
+          </div>
+          <div class="agent-cell" id="cell-web">
+            <div class="agent-name"><span>🕷️</span> WebAgent</div>
+            <div class="agent-status" id="status-web">⏳ Waiting…</div>
+            <div class="agent-log" id="log-web"></div>
+            <div class="agent-progress"><div class="agent-progress-bar" id="pb-web" style="background:var(--green)"></div></div>
+          </div>
+          <div class="agent-cell" id="cell-exploit">
+            <div class="agent-name"><span>💥</span> ExploitAgent</div>
+            <div class="agent-status" id="status-exploit">⏳ Waiting…</div>
+            <div class="agent-log" id="log-exploit"></div>
+            <div class="agent-progress"><div class="agent-progress-bar" id="pb-exploit" style="background:var(--red)"></div></div>
+          </div>
+          <div class="agent-cell" id="cell-report">
+            <div class="agent-name"><span>📄</span> ReportAgent</div>
+            <div class="agent-status" id="status-report">⏳ Waiting…</div>
+            <div class="agent-log" id="log-report"></div>
+            <div class="agent-progress"><div class="agent-progress-bar" id="pb-report" style="background:var(--purple)"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="msg-time">${now()}</div>
+    </div>`;
+  msgs.appendChild(el);
+  scrollBottom();
+  return el;
+}
+
+function updateAgentCell(ev) {
+  const agent = ev.agent;
+  if (!agent) return;
+  const statusEl = document.getElementById(`status-${agent}`);
+  const logEl    = document.getElementById(`log-${agent}`);
+  const pbEl     = document.getElementById(`pb-${agent}`);
+
+  if (ev.event === 'agent_start') {
+    if (statusEl) { statusEl.textContent = '🟡 Running…'; statusEl.className = 'agent-status agent-running'; }
+    if (pbEl) pbEl.style.width = '10%';
+  } else if (ev.event === 'agent_step') {
+    const pct = Math.min(90, 10 + ev.step * 12);
+    if (pbEl) pbEl.style.width = pct + '%';
+    if (logEl) {
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      line.textContent = `Step ${ev.step}: ${ev.action}()`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  } else if (ev.event === 'agent_done') {
+    if (statusEl) { statusEl.textContent = `✅ Done (${ev.step_count} steps, ${ev.finding_count} findings)`; statusEl.className = 'agent-status'; statusEl.style.color = 'var(--green)'; }
+    if (pbEl) pbEl.style.width = '100%';
+  } else if (ev.event === 'agent_thinking') {
+    if (logEl) {
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      line.textContent = `Step ${ev.step}: thinking…`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  }
+}
+
+function updatePhase(num) {
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById(`phase-${i}`);
+    if (!el) continue;
+    if (i < num) el.className = 'phase-badge done';
+    else if (i === num) el.className = 'phase-badge active';
+    else el.className = 'phase-badge';
+  }
+}
+
+function finalizeMultiCard(ev) {
+  const agents = ev.agents || [];
+  agents.forEach(a => {
+    const statusEl = document.getElementById(`status-${a.agent}`);
+    const pbEl = document.getElementById(`pb-${a.agent}`);
+    if (statusEl && a.status !== 'error') {
+      statusEl.textContent = `✅ ${a.steps} steps, ${a.findings} findings`;
+      statusEl.style.color = 'var(--green)';
+    }
+    if (pbEl) pbEl.style.width = '100%';
+  });
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById(`phase-${i}`);
+    if (el) el.className = 'phase-badge done';
+  }
+}
+
+function newChat() {
+  currentSessionId = null;
+  document.getElementById('messages').innerHTML = `
+    <div class="msg agent">
+      <div class="msg-avatar">🤖</div>
+      <div class="msg-body">
+        <div class="msg-bubble">New session ready. What would you like to do?</div>
+        <div class="msg-time">${now()}</div>
+      </div>
+    </div>`;
+  loadSessions();
+}
+
+// ── Utilities ─────────────────────────────────────────────────
+function scrollBottom() {
+  const msgs = document.getElementById('messages');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function now() {
+  return new Date().toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'});
+}
+</script>
+</body>
+</html>

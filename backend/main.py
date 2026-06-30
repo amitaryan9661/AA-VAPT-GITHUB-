@@ -2,16 +2,35 @@
 """
 AA-VAPT Nessus Analyzer — FastAPI Backend v2
 Includes: AI analysis, ChromaDB memory, MCP server,
-          SOAR orchestrator, WebSocket real-time, multi-model support
+          SOAR orchestrator, WebSocket real-time, multi-model support,
+          API authentication, rate limiting
 """
 import logging, json, os, uuid
 from datetime import datetime
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Any
+
+# ENH-01: Authentication
+from backend.auth import require_auth, auth_status
+
+# ENH-02: Rate Limiting via slowapi
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+    _limiter = Limiter(key_func=get_remote_address)
+    _RATE_LIMIT_OK = True
+except ImportError:
+    _limiter = None
+    _RATE_LIMIT_OK = False
+    logging.getLogger("aavapt.main").warning(
+        "slowapi not installed — rate limiting disabled. Run: pip install slowapi --break-system-packages"
+    )
 
 HISTORY_DIR = os.path.join(os.path.dirname(__file__), '..', 'history')
 os.makedirs(HISTORY_DIR, exist_ok=True)
@@ -50,17 +69,81 @@ async def lifespan(app: FastAPI):
     log.info("Backend shutdown complete")
 
 
-app = FastAPI(title="AA-VAPT Nessus Analyzer API", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="AA-VAPT Nessus Analyzer API", version="2.1.0", lifespan=lifespan)
 
-# FIX B11: Removed "null" origin — file:// local requests should not access API
+# ENH-02: Register rate limiter if available
+if _RATE_LIMIT_OK and _limiter:
+    app.state.limiter = _limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS — allow same server (8000) + legacy frontend port (8181)
 app.add_middleware(CORSMiddleware,
     allow_origins=[
+        "http://localhost:8000", "http://127.0.0.1:8000",
         f"http://localhost:{FRONTEND_PORT}", f"http://127.0.0.1:{FRONTEND_PORT}",
         "http://localhost:8181", "http://127.0.0.1:8181",
     ],
     allow_methods=["*"], allow_headers=["*"]
 )
 app.include_router(mcp_server.router)
+
+# ── Static file serving ─────────────────────────────────────────
+_ROOT = os.path.dirname(os.path.dirname(__file__))   # project root
+
+@app.get("/", include_in_schema=False)
+async def serve_index():
+    return FileResponse(os.path.join(_ROOT, "nessus-analyzer.html"))
+
+@app.get("/nessus-analyzer.html", include_in_schema=False)
+async def serve_nessus():
+    return FileResponse(os.path.join(_ROOT, "nessus-analyzer.html"))
+
+@app.get("/nmap-output-analyzer.html", include_in_schema=False)
+async def serve_nmap_output():
+    return FileResponse(os.path.join(_ROOT, "nmap-output-analyzer.html"))
+
+@app.get("/nmap-pt.html", include_in_schema=False)
+async def serve_nmap():
+    return FileResponse(os.path.join(_ROOT, "nmap-pt.html"))
+
+@app.get("/webapp-pt.html", include_in_schema=False)
+async def serve_webapp():
+    return FileResponse(os.path.join(_ROOT, "webapp-pt.html"))
+
+@app.get("/agent.html", include_in_schema=False)
+async def serve_agent():
+    return FileResponse(os.path.join(_ROOT, "frontend", "agent.html"))
+
+# ── Agent System (AI autonomous agent with ReAct loop) ──────────
+try:
+    from backend.agent.router import router as _agent_router
+    from backend.agent.router import agent_ws as _agent_ws_handler
+    app.include_router(_agent_router)
+    # Register agent WebSocket separately (prefix override)
+    @app.websocket("/ws/agent/{session_id}")
+    async def websocket_agent(ws: WebSocket, session_id: str):
+        await _agent_ws_handler(ws, session_id)
+    log.info("AI Agent system loaded — /api/agent/* + /ws/agent/{session_id}")
+except Exception as _agent_err:
+    log.warning("Agent system unavailable: %s", _agent_err)
+
+# ── Multi-Agent VAPT Pipeline ────────────────────────────────────
+try:
+    from backend.vapt_pipeline import router as _pipeline_router
+    app.include_router(_pipeline_router)
+    log.info("VAPT Pipeline loaded — /api/vapt/pipeline/*")
+except Exception as _pipe_err:
+    log.warning("VAPT Pipeline unavailable: %s", _pipe_err)
+
+# ── Report serving ───────────────────────────────────────────────
+@app.get("/reports/{session_id}.html", include_in_schema=False)
+async def serve_report(session_id: str):
+    import os as _os
+    report_path = _os.path.join(_ROOT, "reports", f"report_{session_id}.html")
+    if _os.path.exists(report_path):
+        return FileResponse(report_path, media_type="text/html")
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse("<h2>Report not found</h2>", status_code=404)
 
 
 # ── Models ─────────────────────────────────────────────────────
@@ -140,12 +223,14 @@ async def status():
     mem_stats  = mem.get_stats()
     soar_sum   = orchestrator.get_summary()
     return {
-        "status": "ok", "version": "2.0.0",
+        "status": "ok", "version": "2.1.0",
         "ollama":  {"running": ollama_ok, **model_info},
         "chromadb":{"ready": chroma_ok, **mem_stats},
         "mcp":     {"endpoint": "/mcp", "tools": len(mcp_server.TOOLS)},
         "soar":    soar_sum,
         "ws":      {"clients": ws_manager.count, "endpoint": "/ws"},
+        "auth":    auth_status(),
+        "rate_limiting": {"enabled": _RATE_LIMIT_OK},
     }
 
 @app.get("/health")
@@ -153,9 +238,87 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/api/kali/status")
+async def kali_status():
+    """Check what execution environment is available for Kali tools."""
+    import sys, shutil, subprocess
+    is_win = sys.platform.startswith("win")
+    wsl_ok = False
+    wsl_distro = ""
+    tools_found = []
+    tools_missing = []
+    kali_tools_list = ["nmap","nikto","ffuf","nuclei","subfinder","whatweb",
+                       "ssh-audit","hydra","msfconsole","sqlmap"]
+    if is_win:
+        wsl_bin = shutil.which("wsl")
+        if wsl_bin:
+            try:
+                r = subprocess.run(["wsl", "--list", "--quiet"],
+                                   capture_output=True, timeout=5)
+                wsl_distro = r.stdout.decode("utf-16-le","replace").strip().split("\n")[0].strip()
+                wsl_ok = True
+            except Exception:
+                pass
+        for tool in kali_tools_list:
+            try:
+                r = subprocess.run(["wsl","-e","which",tool],
+                                   capture_output=True, timeout=4)
+                (tools_found if r.returncode==0 else tools_missing).append(tool)
+            except Exception:
+                tools_missing.append(tool)
+    else:
+        wsl_ok = False
+        for tool in kali_tools_list:
+            (tools_found if shutil.which(tool) else tools_missing).append(tool)
+
+    mode = ("wsl" if (is_win and wsl_ok) else
+            "native_linux" if not is_win else
+            "windows_no_wsl")
+    return {
+        "platform": sys.platform,
+        "mode": mode,
+        "wsl_available": wsl_ok,
+        "wsl_distro": wsl_distro,
+        "tools_found": tools_found,
+        "tools_missing": tools_missing,
+        "ready": len(tools_found) > 0,
+        "message": (
+            f"WSL ({wsl_distro}) connected — {len(tools_found)}/{len(kali_tools_list)} tools found"
+            if wsl_ok else
+            f"Native Linux — {len(tools_found)}/{len(kali_tools_list)} tools found"
+            if not is_win else
+            "Windows without WSL — install WSL + Kali Linux"
+        )
+    }
+
+
+# ── Live log tail endpoint ─────────────────────────────────────
+import collections as _collections
+_LOG_BUFFER: _collections.deque = _collections.deque(maxlen=200)
+
+class _BufferHandler(logging.Handler):
+    _fmt = logging.Formatter()
+    def emit(self, record):
+        _LOG_BUFFER.append({
+            "t": self._fmt.formatTime(record, "%H:%M:%S"),
+            "level": record.levelname,
+            "name": record.name.replace("aavapt.", ""),
+            "msg": record.getMessage(),
+        })
+
+_buf_handler = _BufferHandler()
+_buf_handler.setLevel(logging.DEBUG)
+logging.getLogger("aavapt").addHandler(_buf_handler)
+
+@app.get("/api/logs")
+async def get_logs(n: int = 100):
+    """Return last N log lines from the in-memory buffer."""
+    return {"logs": list(_LOG_BUFFER)[-n:]}
+
+
 # ── AI Analysis ────────────────────────────────────────────────
 @app.post("/api/analyze")
-async def analyze(req: AnalyzeRequest):
+async def analyze(req: AnalyzeRequest, _auth=Depends(require_auth)):
     if not ai.is_ollama_running():
         raise HTTPException(503, "Ollama not running — run: bash install.sh && ollama serve")
     similar  = mem.search_similar(f"{req.finding_name} {req.plugin_id} {req.synopsis}", n_results=3)
@@ -215,8 +378,17 @@ async def executive_summary(req: SummaryRequest):
 
 # ── SOAR Triage ─────────────────────────────────────────────────
 @app.post("/api/soar/triage")
-async def soar_triage(req: TriageRequest):
-    """Auto-triage all findings via SOAR orchestrator."""
+async def soar_triage(req: TriageRequest, _auth=Depends(require_auth)):
+    """Auto-triage all findings via SOAR orchestrator.
+    ENH-12: Max 500 findings per request to prevent system overload."""
+    # ENH-12: Hard limit to prevent memory/CPU exhaustion
+    MAX_TRIAGE_FINDINGS = 500
+    if len(req.findings) > MAX_TRIAGE_FINDINGS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many findings ({len(req.findings)}). Max per triage request: {MAX_TRIAGE_FINDINGS}. "
+                   f"Split your scan into batches."
+        )
     orchestrator.clear()
     job_ids = await orchestrator.submit(req.findings, req.host)
     return {"job_ids": job_ids, "total": len(job_ids),
@@ -344,7 +516,8 @@ class HistorySaveRequest(BaseModel):
 
 @app.post("/api/history/save")
 async def history_save(req: HistorySaveRequest):
-    hid = str(uuid.uuid4())[:8]
+    # FIX BUG-08: Use 12 chars instead of 8 to reduce collision probability
+    hid = str(uuid.uuid4())[:12]
     safe_name = "".join(c if c.isalnum() or c in "-_ " else "_" for c in req.name)[:40].strip()
     fname = f"{hid}_{safe_name.replace(' ','_')}.json"
     meta = {
@@ -454,6 +627,12 @@ async def findings_sync(req: FindingsSyncRequest):
 async def findings_search(q: str, limit: int = 50):
     """Offline-safe keyword / IP / port / CVE search across the loaded scan."""
     return {"query": q, "results": findings_store.search(q, limit)}
+
+
+@app.get("/api/findings/page")
+async def findings_page(page: int = 0, per_page: int = 100):
+    """ENH-06: Paginated findings access — use for large scans instead of /api/findings/search."""
+    return findings_store.get_page(page, per_page)
 
 
 # ── Machine Learning: FP filter (supervised) + clustering (unsupervised) ──

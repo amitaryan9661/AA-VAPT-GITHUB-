@@ -104,7 +104,9 @@ def clear_session_memory(session_id: str):
 # Ollama Integration (local only, DeepSeek-R1)
 # ─────────────────────────────────────────────
 
-OLLAMA_BASE_URL = "http://localhost:11434"
+# FIX BUG-04: Use config instead of hardcoded URL
+from backend.config import OLLAMA_HOST
+OLLAMA_BASE_URL = OLLAMA_HOST
 DEFAULT_MODEL = "deepseek-r1:latest"
 
 
@@ -117,11 +119,17 @@ def generate_test_guidance(test: dict, crawl_result: dict,
                            similar_findings: list = None) -> str:
     """
     Ask local Ollama to generate specific testing guidance for the current WSTG test.
-    Incorporates crawl data and past findings via RAG.
-    Returns guidance string.
+    FIX BUG-04: Uses config OLLAMA_HOST instead of hardcoded URL.
+    FIX BUG-05: Routes through centralized ollama_client to avoid blocking the event loop.
     """
     try:
-        import requests
+        # FIX BUG-05: Use centralized ollama_client.chat() instead of raw requests
+        # This avoids blocking the async event loop and reuses caching/model-selection logic
+        from backend.ai.ollama_client import chat as _ollama_chat, is_ollama_running
+        import re as _re
+
+        if not is_ollama_running():
+            return "AI guidance unavailable — Ollama not running? Start: ollama serve"
 
         target_url = crawl_result.get("target_url", "TARGET")
         technologies = crawl_result.get("technologies", [])
@@ -135,51 +143,30 @@ def generate_test_guidance(test: dict, crawl_result: dict,
             for f in similar_findings[:3]:
                 rag_context += f"- {f['text'][:200]}\n"
 
-        prompt = f"""You are an expert web application penetration tester using OWASP WSTG methodology.
-
-CURRENT TEST: {test.get('test_id')} — {test.get('name')}
-SEVERITY: {test.get('severity', 'medium').upper()}
-TARGET: {target_url}
-TECH STACK: {', '.join(technologies) or 'Unknown'}
-FORMS FOUND: {len(forms)} (fields: {', '.join(f.get('fields',[{}])[0].get('name','') for f in forms[:3] if f.get('fields'))[:100]})
-API ENDPOINTS: {', '.join(api_endpoints[:5]) or 'None detected'}
-{rag_context}
-
-Provide SPECIFIC, ACTIONABLE guidance for testing {test.get('name')} on this target.
-Include:
-1. Which specific endpoints/parameters to target (based on crawl data above)
-2. Exact payloads to try (top 3 most likely to work)
-3. What to look for in the response (success indicators)
-4. Quick Burp Suite step (if applicable)
-5. Risk: briefly explain impact if vulnerable
-
-Keep response under 300 words. Be direct and specific to THIS application's tech stack."""
-
-        response = requests.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
-            json={
-                "model": _get_ollama_model(),
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "num_predict": 400,
-                    "temperature": 0.3,
-                    "top_p": 0.9,
-                },
-            },
-            timeout=60,
+        prompt = (
+            f"You are an expert web application penetration tester using OWASP WSTG methodology.\n\n"
+            f"CURRENT TEST: {test.get('test_id')} — {test.get('name')}\n"
+            f"SEVERITY: {test.get('severity', 'medium').upper()}\n"
+            f"TARGET: {target_url}\n"
+            f"TECH STACK: {', '.join(technologies) or 'Unknown'}\n"
+            f"FORMS FOUND: {len(forms)} (fields: "
+            f"{', '.join(f.get('fields',[{}])[0].get('name','') for f in forms[:3] if f.get('fields'))[:100]})\n"
+            f"API ENDPOINTS: {', '.join(api_endpoints[:5]) or 'None detected'}\n"
+            f"{rag_context}\n\n"
+            f"Provide SPECIFIC, ACTIONABLE guidance for testing {test.get('name')} on this target.\n"
+            f"Include:\n"
+            f"1. Which specific endpoints/parameters to target (based on crawl data above)\n"
+            f"2. Exact payloads to try (top 3 most likely to work)\n"
+            f"3. What to look for in the response (success indicators)\n"
+            f"4. Quick Burp Suite step (if applicable)\n"
+            f"5. Risk: briefly explain impact if vulnerable\n\n"
+            f"Keep response under 300 words. Be direct and specific to THIS application's tech stack."
         )
 
-        if response.status_code == 200:
-            data = response.json()
-            guidance = data.get("response", "").strip()
-            # Strip <think>...</think> tags from DeepSeek-R1
-            import re
-            guidance = re.sub(r'<think>.*?</think>', '', guidance, flags=re.DOTALL).strip()
-            return guidance or "AI guidance not available. Use manual steps above."
-        else:
-            log.warning(f"Ollama returned {response.status_code}")
-            return "AI guidance unavailable — Ollama returned error. Use manual steps above."
+        system = "You are an expert web application penetration tester using OWASP WSTG methodology."
+        guidance = _ollama_chat(prompt, system=system)
+        guidance = _re.sub(r'<think>.*?</think>', '', guidance, flags=_re.DOTALL).strip()
+        return guidance or "AI guidance not available. Use manual steps above."
 
     except Exception as e:
         log.warning(f"Ollama guidance failed: {e}")
@@ -187,57 +174,54 @@ Keep response under 300 words. Be direct and specific to THIS application's tech
 
 
 def generate_finding_summary(finding: dict, target_url: str) -> str:
-    """Generate a finding write-up using Ollama."""
+    """Generate a finding write-up using Ollama.
+    FIX BUG-05: Uses centralized ollama_client.chat() — no blocking requests."""
     try:
-        import requests
-        prompt = f"""Write a professional penetration test finding for this vulnerability:
+        from backend.ai.ollama_client import chat as _ollama_chat, is_ollama_running
+        import re as _re
 
-VULNERABILITY: {finding.get('name')}
-SEVERITY: {finding.get('severity', 'medium').upper()}
-TARGET: {target_url}
-CATEGORY: {finding.get('category')}
-EVIDENCE: {finding.get('evidence', 'N/A')}
-PAYLOAD USED: {finding.get('payload', 'N/A')}
-TESTER NOTES: {finding.get('notes', 'N/A')}
-OWASP: {', '.join(finding.get('owasp_top10', [])) or 'N/A'}
+        if not is_ollama_running():
+            return f"{finding.get('name')} — {finding.get('notes', 'See evidence.')}"
 
-Write a concise finding report with:
-- Description (2-3 sentences)
-- Technical Details
-- Risk Impact (1-2 sentences)
-- Recommendation (2-3 bullet points)
-
-Keep professional, clear, under 250 words."""
-
-        response = requests.post(
-            f"{OLLAMA_BASE_URL}/api/generate",
-            json={"model": _get_ollama_model(), "prompt": prompt,
-                  "stream": False, "options": {"num_predict": 350, "temperature": 0.2}},
-            timeout=60,
+        prompt = (
+            f"Write a professional penetration test finding for this vulnerability:\n\n"
+            f"VULNERABILITY: {finding.get('name')}\n"
+            f"SEVERITY: {finding.get('severity', 'medium').upper()}\n"
+            f"TARGET: {target_url}\n"
+            f"CATEGORY: {finding.get('category')}\n"
+            f"EVIDENCE: {finding.get('evidence', 'N/A')}\n"
+            f"PAYLOAD USED: {finding.get('payload', 'N/A')}\n"
+            f"TESTER NOTES: {finding.get('notes', 'N/A')}\n"
+            f"OWASP: {', '.join(finding.get('owasp_top10', [])) or 'N/A'}\n\n"
+            f"Write a concise finding report with:\n"
+            f"- Description (2-3 sentences)\n"
+            f"- Technical Details\n"
+            f"- Risk Impact (1-2 sentences)\n"
+            f"- Recommendation (2-3 bullet points)\n\n"
+            f"Keep professional, clear, under 250 words."
         )
-        if response.status_code == 200:
-            import re
-            result = response.json().get("response", "").strip()
-            result = re.sub(r'<think>.*?</think>', '', result, flags=re.DOTALL).strip()
-            return result
+        system = "You are a senior penetration tester writing a professional security report."
+        result = _ollama_chat(prompt, system=system)
+        result = _re.sub(r'<think>.*?</think>', '', result, flags=_re.DOTALL).strip()
+        return result or f"{finding.get('name')} — {finding.get('notes', 'See evidence.')}"
     except Exception as e:
         log.warning(f"Ollama finding summary failed: {e}")
     return f"{finding.get('name')} — {finding.get('notes', 'See evidence.')}"
 
 
 def check_ollama_available() -> dict:
-    """Check if Ollama is running and return available models."""
+    """Check if Ollama is running and return available models.
+    FIX BUG-05: Uses centralized ollama_client instead of raw requests."""
+    from backend.ai.ollama_client import is_ollama_running, list_models, get_available_model
     try:
-        import requests
-        r = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
-        if r.status_code == 200:
-            models = [m["name"] for m in r.json().get("models", [])]
+        if is_ollama_running():
+            models = [m["id"] for m in list_models()]
             deepseek = any("deepseek" in m.lower() for m in models)
             return {
                 "available": True,
                 "models": models,
                 "deepseek_ready": deepseek,
-                "recommended_model": DEFAULT_MODEL,
+                "recommended_model": get_available_model(),
             }
     except Exception:
         pass
