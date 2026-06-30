@@ -368,6 +368,7 @@ async def run_metasploit_module(module: str, target: str,
                                  options: Optional[dict] = None) -> dict:
     if not _tool_available("msfconsole"):
         return {"error": "Metasploit not found. Install: apt install metasploit-framework"}
+    import tempfile as _tmp, os as _os2
     opts = options or {}
     if port:
         opts["RPORT"] = port
@@ -381,8 +382,15 @@ async def run_metasploit_module(module: str, target: str,
         "sleep 10\n"
         "exit\n"
     )
-    cmd = f"echo '{rc_script}' | msfconsole -q -r /dev/stdin 2>&1"
-    rc, out, _ = await _run(cmd, 120)
+    # Write RC script to a temp file to avoid shell injection via echo + single quotes
+    rc_fd, rc_path = _tmp.mkstemp(suffix=".rc", prefix="msf_")
+    try:
+        with _os2.fdopen(rc_fd, "w") as _f:
+            _f.write(rc_script)
+        cmd = f"msfconsole -q -r '{rc_path}' 2>&1"
+        rc, out, _ = await _run(cmd, 120)
+    finally:
+        _os2.unlink(rc_path) if _os2.path.exists(rc_path) else None
     return {
         "tool": "metasploit",
         "module": module,
@@ -505,8 +513,9 @@ async def ffuf_scan(
     ext_arg = f"-e .{extensions.replace(',',',.').replace(' ','')}" if extensions else ""
     import os as _os, tempfile as _tmp
     proxy_arg = f"-x {proxy}" if proxy else ""
-    # Write JSON output to a temp file (ffuf -json writes full JSON to -o, not stdout)
-    out_file = _tmp.mktemp(suffix=".json")
+    # Write JSON output to a secure temp file (ffuf -json writes full JSON to -o, not stdout)
+    _fd, out_file = _tmp.mkstemp(suffix=".json", prefix="ffuf_")
+    _os.close(_fd)  # close fd — ffuf will write to the path
     cmd = (
         f"ffuf -u '{target}' -w '{wordlist}' {ext_arg} {proxy_arg} "
         f"-mc 200,204,301,302,307,401,403 -t 40 -timeout 5 "
@@ -528,7 +537,10 @@ async def ffuf_scan(
                 })
             _os.unlink(out_file)
     except Exception:
-        pass
+        try:
+            _os.unlink(out_file)
+        except Exception:
+            pass
     # Fallback: parse plain-text stdout
     if not results:
         for line in out.splitlines():
@@ -681,12 +693,16 @@ _SSRF_PAYLOADS = [
 
 async def xss_test(url: str, param: str = "", proxy: str = "") -> dict:
     """Quick reflected XSS test with multiple payloads."""
+    from urllib.parse import quote as _quote
     if not _tool_available("curl"):
         return {"error": "curl not found", "url": url}
     proxy_arg = f"--proxy '{proxy}'" if proxy else ""
     found = []
     for payload in _XSS_PAYLOADS[:3]:
-        test_url = f"{url}{'&' if '?' in url else '?'}{param or 'q'}={payload}" if param else f"{url}?q={payload}"
+        encoded = _quote(payload, safe="")
+        p_name = param or "q"
+        sep = "&" if "?" in url else "?"
+        test_url = f"{url}{sep}{p_name}={encoded}"
         cmd = f"curl -sk --max-time 8 {proxy_arg} '{test_url}' 2>&1"
         _, out, _ = await _run(cmd, 12)
         if payload.lower() in out.lower():
@@ -704,6 +720,7 @@ async def xss_test(url: str, param: str = "", proxy: str = "") -> dict:
 
 async def sqli_test(url: str, param: str = "", proxy: str = "") -> dict:
     """Quick SQL injection test — error-based and boolean-based."""
+    from urllib.parse import quote as _quote
     if not _tool_available("curl"):
         return {"error": "curl not found", "url": url}
     proxy_arg = f"--proxy '{proxy}'" if proxy else ""
@@ -714,7 +731,10 @@ async def sqli_test(url: str, param: str = "", proxy: str = "") -> dict:
     ]
     found = []
     for payload in _SQLI_PAYLOADS[:3]:
-        test_url = f"{url}{'&' if '?' in url else '?'}{param or 'id'}={payload}" if param else f"{url}?id={payload}"
+        encoded = _quote(payload, safe="")
+        p_name = param or "id"
+        sep = "&" if "?" in url else "?"
+        test_url = f"{url}{sep}{p_name}={encoded}"
         cmd = f"curl -sk --max-time 8 {proxy_arg} '{test_url}' 2>&1"
         _, out, _ = await _run(cmd, 12)
         out_low = out.lower()
@@ -734,13 +754,17 @@ async def sqli_test(url: str, param: str = "", proxy: str = "") -> dict:
 
 async def lfi_test(url: str, param: str = "", proxy: str = "") -> dict:
     """Quick Local File Inclusion test."""
+    from urllib.parse import quote as _quote
     if not _tool_available("curl"):
         return {"error": "curl not found", "url": url}
     proxy_arg = f"--proxy '{proxy}'" if proxy else ""
     lfi_indicators = ["root:x:", "root:!", "[boot loader]", "www-data:", "daemon:"]
     found = []
     for payload in _LFI_PAYLOADS[:3]:
-        test_url = f"{url}{'&' if '?' in url else '?'}{param or 'file'}={payload}" if param else f"{url}?file={payload}"
+        encoded = _quote(payload, safe="")
+        p_name = param or "file"
+        sep = "&" if "?" in url else "?"
+        test_url = f"{url}{sep}{p_name}={encoded}"
         cmd = f"curl -sk --max-time 8 {proxy_arg} '{test_url}' 2>&1"
         _, out, _ = await _run(cmd, 12)
         triggered = [ind for ind in lfi_indicators if ind in out]
@@ -759,13 +783,17 @@ async def lfi_test(url: str, param: str = "", proxy: str = "") -> dict:
 
 async def ssrf_test(url: str, param: str = "", proxy: str = "") -> dict:
     """Quick SSRF test — metadata endpoint + localhost probing."""
+    from urllib.parse import quote as _quote
     if not _tool_available("curl"):
         return {"error": "curl not found", "url": url}
     proxy_arg = f"--proxy '{proxy}'" if proxy else ""
     ssrf_indicators = ["ami-id", "instance-id", "ec2", "169.254", "local-ipv4", "root:x:", "127.0.0.1"]
     found = []
     for payload in _SSRF_PAYLOADS[:3]:
-        test_url = f"{url}{'&' if '?' in url else '?'}{param or 'url'}={payload}" if param else f"{url}?url={payload}"
+        encoded = _quote(payload, safe="")
+        p_name = param or "url"
+        sep = "&" if "?" in url else "?"
+        test_url = f"{url}{sep}{p_name}={encoded}"
         cmd = f"curl -sk --max-time 8 {proxy_arg} '{test_url}' 2>&1"
         _, out, _ = await _run(cmd, 12)
         triggered = [ind for ind in ssrf_indicators if ind.lower() in out.lower()]
@@ -886,20 +914,29 @@ async def jwt_analyze(token: str) -> dict:
             issues.append({"type": "alg:none", "severity": "critical", "detail": "JWT uses no algorithm — trivially forgeable"})
         # weak algo
         if header.get("alg", "").upper() in ("HS256", "HS384", "HS512"):
-            issues.append({"type": "weak-symmetric-key", "severity": "medium", "detail": f"Symmetric algorithm {header['alg']} — vulnerable to secret brute-force"})
-        # expiry check
+            issues.append({"type": "weak-symmetric-key", "severity": "medium",
+                           "detail": f"Symmetric algorithm {header.get('alg')} — vulnerable to brute-force"})
+        # Expiry check
         exp = payload.get("exp")
         if exp and exp < time.time():
-            issues.append({"type": "expired", "severity": "low", "detail": f"Token expired at {exp}"})
+            issues.append({"type": "expired", "severity": "low",
+                           "detail": f"Token expired at {exp}"})
         if not exp:
-            issues.append({"type": "no-expiry", "severity": "medium", "detail": "JWT has no expiry claim"})
+            issues.append({"type": "no-expiry", "severity": "medium",
+                           "detail": "JWT has no exp claim — token never expires"})
+        # Sensitive claims
+        for k in ["password", "passwd", "secret", "admin", "role", "is_admin"]:
+            if k in payload:
+                issues.append({"type": "sensitive-claim", "severity": "medium",
+                               "detail": f"Sensitive claim '{k}' present in payload"})
         return {
             "tool": "jwt-analyzer",
+            "token_prefix": token[:30] + "...",
             "header": header,
-            "payload": payload,
+            "payload": {k: v for k, v in payload.items() if k != "sub"},
             "issues": issues,
-            "vulnerable": any(i["severity"] in ("critical","high") for i in issues),
-            "severity": max((i["severity"] for i in issues), default="info", key=lambda s: {"critical":4,"high":3,"medium":2,"low":1,"info":0}[s]),
+            "vulnerable": any(i["severity"] in ("critical", "high") for i in issues),
+            "finding": f"{len(issues)} issue(s) found in JWT" if issues else "JWT appears well-configured",
         }
     except Exception as e:
-        return {"error": f"JWT parse error: {e}", "token_preview": token[:40]}
+        return {"error": f"JWT parse error: {e}", "token_prefix": token[:30]}

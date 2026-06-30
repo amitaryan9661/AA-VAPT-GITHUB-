@@ -11,7 +11,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Any
 
@@ -243,37 +242,51 @@ async def kali_status():
     """Check what execution environment is available for Kali tools."""
     import sys, shutil, subprocess
     is_win = sys.platform.startswith("win")
-    wsl_ok = False
-    wsl_distro = ""
-    tools_found = []
-    tools_missing = []
+
+    # Defined in outer scope so message-builder can reference it
     kali_tools_list = ["nmap","nikto","ffuf","nuclei","subfinder","whatweb",
                        "ssh-audit","hydra","msfconsole","sqlmap"]
-    if is_win:
-        wsl_bin = shutil.which("wsl")
-        if wsl_bin:
-            try:
-                r = subprocess.run(["wsl", "--list", "--quiet"],
-                                   capture_output=True, timeout=5)
-                wsl_distro = r.stdout.decode("utf-16-le","replace").strip().split("\n")[0].strip()
-                wsl_ok = True
-            except Exception:
-                pass
-        for tool in kali_tools_list:
-            try:
-                r = subprocess.run(["wsl","-e","which",tool],
-                                   capture_output=True, timeout=4)
-                (tools_found if r.returncode==0 else tools_missing).append(tool)
-            except Exception:
-                tools_missing.append(tool)
-    else:
-        wsl_ok = False
-        for tool in kali_tools_list:
-            (tools_found if shutil.which(tool) else tools_missing).append(tool)
+
+    # Run all blocking subprocess.run calls in executor so the event loop isn't blocked
+    loop = asyncio.get_running_loop()
+
+    def _check_sync():
+        _wsl_ok = False
+        _wsl_distro = ""
+        _tools_found = []
+        _tools_missing = []
+        if is_win:
+            wsl_bin = shutil.which("wsl")
+            if wsl_bin:
+                try:
+                    r = subprocess.run(["wsl", "--list", "--quiet"],
+                                       capture_output=True, timeout=5)
+                    _wsl_distro = r.stdout.decode("utf-16-le","replace").strip().split("\n")[0].strip()
+                    _wsl_ok = True
+                except Exception:
+                    pass
+            for tool in kali_tools_list:
+                try:
+                    r = subprocess.run(["wsl","-e","which",tool],
+                                       capture_output=True, timeout=4)
+                    (_tools_found if r.returncode==0 else _tools_missing).append(tool)
+                except Exception:
+                    _tools_missing.append(tool)
+        else:
+            for tool in kali_tools_list:
+                (_tools_found if shutil.which(tool) else _tools_missing).append(tool)
+        return _wsl_ok, _wsl_distro, _tools_found, _tools_missing
+
+    try:
+        wsl_ok, wsl_distro, tools_found, tools_missing = await loop.run_in_executor(None, _check_sync)
+    except Exception as e:
+        log.error("kali_status check failed: %s", e)
+        wsl_ok, wsl_distro, tools_found, tools_missing = False, "", [], kali_tools_list
 
     mode = ("wsl" if (is_win and wsl_ok) else
             "native_linux" if not is_win else
             "windows_no_wsl")
+    total = len(kali_tools_list)
     return {
         "platform": sys.platform,
         "mode": mode,
@@ -283,9 +296,9 @@ async def kali_status():
         "tools_missing": tools_missing,
         "ready": len(tools_found) > 0,
         "message": (
-            f"WSL ({wsl_distro}) connected — {len(tools_found)}/{len(kali_tools_list)} tools found"
+            f"WSL ({wsl_distro}) connected — {len(tools_found)}/{total} tools found"
             if wsl_ok else
-            f"Native Linux — {len(tools_found)}/{len(kali_tools_list)} tools found"
+            f"Native Linux — {len(tools_found)}/{total} tools found"
             if not is_win else
             "Windows without WSL — install WSL + Kali Linux"
         )
@@ -1052,7 +1065,7 @@ from backend.webapp_pt.burp_integration import (
 from backend.webapp_pt.report_generator import (
     generate_html_report, generate_json_report, generate_markdown_report,
 )
-from backend.webapp_pt.wstg_checklist import get_applicable_tests
+# wstg_checklist imported locally inside get_wstg_checklist_api to avoid startup overhead
 
 
 class WebAppStartRequest(BaseModel):
@@ -1478,6 +1491,136 @@ async def get_h1_patterns_api(test_type: str = "", category: str = "", q: str = 
 async def get_wstg_checklist_api():
     from backend.webapp_pt.wstg_checklist import get_all_tests, get_category_summary
     return {"tests": get_all_tests(), "summary": get_category_summary()}
+
+
+
+
+# ══════════════════════════════════════════════════════════════
+#  COMPLIANCE + DASHBOARD APIs
+# ══════════════════════════════════════════════════════════════
+
+def _get_all_findings() -> list:
+    """Merge findings from findings_store and memory session."""
+    return findings_store.get_all()
+
+
+@app.get("/api/compliance/owasp")
+async def compliance_owasp():
+    """Map all loaded findings to OWASP Top 10 2021 categories."""
+    from backend.compliance import owasp_analysis
+    findings = _get_all_findings()
+    return owasp_analysis(findings)
+
+
+@app.get("/api/compliance/pci-dss")
+async def compliance_pci():
+    """PCI-DSS v4.0 gap analysis based on current findings."""
+    from backend.compliance import pci_analysis
+    findings = _get_all_findings()
+    return pci_analysis(findings)
+
+
+@app.get("/api/compliance/iso27001")
+async def compliance_iso():
+    """ISO 27001:2022 Annex A technological controls gap analysis."""
+    from backend.compliance import iso27001_analysis
+    findings = _get_all_findings()
+    return iso27001_analysis(findings)
+
+
+@app.get("/api/compliance/risk-score")
+async def compliance_risk():
+    """Calculate overall risk score (0-100) from current findings."""
+    from backend.compliance import risk_score
+    findings = _get_all_findings()
+    return risk_score(findings)
+
+
+@app.get("/api/compliance/topology")
+async def compliance_topology():
+    """Build D3-ready network topology graph from current findings."""
+    from backend.compliance import build_topology
+    findings = _get_all_findings()
+    return build_topology(findings)
+
+
+@app.post("/api/compliance/diff")
+async def compliance_diff(body: dict):
+    """
+    Diff two finding sets.
+    Body: {"old_session_id": "...", "new_session_id": "..."}
+    or    {"old_findings": [...], "new_findings": [...]}
+    """
+    from backend.compliance import diff_scans
+    from backend.agent import memory as mem_mod
+
+    old_f = body.get("old_findings")
+    new_f = body.get("new_findings")
+
+    if old_f is None:
+        old_sid = body.get("old_session_id", "")
+        old_sess = mem_mod.get_session(old_sid) if old_sid else {}
+        old_f = old_sess.get("findings", []) if old_sess else []
+
+    if new_f is None:
+        new_f = _get_all_findings()
+
+    return diff_scans(old_f, new_f)
+
+
+@app.get("/api/dashboard/summary")
+async def dashboard_summary():
+    """
+    Single endpoint for dashboard -- returns everything needed to render
+    the overview page without multiple round-trips.
+    """
+    from backend.compliance import owasp_analysis, risk_score, build_topology
+    from backend.agent import memory as mem_mod
+
+    findings = _get_all_findings()
+    rs = risk_score(findings)
+    owasp = owasp_analysis(findings)
+    topo = build_topology(findings)
+
+    hist = []
+    try:
+        hist_dir = __import__("pathlib").Path(_ROOT) / "data" / "history"
+        if hist_dir.exists():
+            import json as _json
+            for hf in sorted(hist_dir.glob("*.json"), key=lambda p: p.stat().st_mtime):
+                try:
+                    meta = _json.loads(hf.read_text())
+                    hist.append({
+                        "id": hf.stem,
+                        "name": meta.get("name", hf.stem),
+                        "ts": meta.get("ts", ""),
+                        "finding_count": len(meta.get("findings", [])),
+                        "risk_score": meta.get("risk_score"),
+                    })
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    return {
+        "risk": rs,
+        "owasp_coverage": owasp["coverage_pct"],
+        "owasp_categories": [
+            {"id": c["id"], "name": c["name"], "count": c["count"],
+             "critical": c["critical"], "high": c["high"], "medium": c["medium"]}
+            for c in owasp["categories"]
+        ],
+        "topology": topo,
+        "history": hist[-20:],
+        "findings_total": len(findings),
+        "severity_counts": rs["severity_counts"],
+        "affected_hosts": rs["affected_hosts"],
+    }
+
+
+@app.get("/dashboard.html")
+async def serve_dashboard():
+    return FileResponse(os.path.join(_ROOT, "dashboard.html"))
 
 
 if __name__ == "__main__":

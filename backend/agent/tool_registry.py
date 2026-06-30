@@ -295,78 +295,276 @@ TOOLS: list[dict] = [
         },
     },
 
-    # ── Utility ──────────────────────────────────────────────
+    # ── Web App Attack Tools ─────────────────────────────────
     {
-        "name": "ask_human",
-        "category": "utility",
+        "name": "whatweb_scan",
+        "category": "enum",
         "dangerous": False,
         "description": (
-            "Ask the human operator a question when the agent needs clarification, "
-            "missing information, or a decision before proceeding. "
-            "Use when target scope is unclear, credentials needed, or permission uncertain."
+            "Identify web technologies, CMS, frameworks, server software on a URL. "
+            "Detects WordPress, Joomla, PHP version, jQuery, Apache/Nginx version, etc. "
+            "Use before deeper web scanning to fingerprint the stack."
         ),
         "parameters": {
-            "question": {"type": "string", "required": True,  "description": "The question to ask the human"},
-            "options":  {"type": "array",  "required": False, "description": "Optional predefined answer choices"},
+            "url":     {"type": "string",  "required": True,  "description": "Target URL e.g. http://192.168.1.10/"},
+            "timeout": {"type": "integer", "required": False, "description": "Timeout seconds. Default: 30"},
         },
     },
 
     {
-        "name": "think",
-        "category": "utility",
+        "name": "gobuster_scan",
+        "category": "enum",
         "dangerous": False,
         "description": (
-            "Internal reasoning step — use to think through findings, plan next actions, "
-            "or explain conclusions without calling an external tool. "
-            "Output is shown to the user as agent reasoning."
+            "Directory/file brute-force enumeration with gobuster. "
+            "Finds hidden paths, admin panels, backup files, APIs, config files. "
+            "Use on HTTP services to discover hidden content."
         ),
         "parameters": {
-            "thought": {"type": "string", "required": True, "description": "What you are thinking / reasoning about"},
+            "url":       {"type": "string",  "required": True,  "description": "Target base URL e.g. http://10.0.0.5/"},
+            "wordlist":  {"type": "string",  "required": False, "description": "Wordlist path. Default: /usr/share/wordlists/dirb/common.txt"},
+            "extensions":{"type": "string",  "required": False, "description": "File extensions to check e.g. 'php,txt,html'. Default: php,html,txt"},
+            "threads":   {"type": "integer", "required": False, "description": "Number of threads. Default: 20"},
+            "timeout":   {"type": "integer", "required": False, "description": "Timeout seconds. Default: 120"},
         },
     },
 
     {
-        "name": "finish",
-        "category": "utility",
+        "name": "ffuf_scan",
+        "category": "enum",
         "dangerous": False,
         "description": (
-            "Signal that the agent has completed the task. "
-            "Provide a final answer summarizing all findings, conclusions, and recommendations. "
-            "ALWAYS call this as the last action."
+            "Fast web fuzzer (ffuf) for directory discovery and parameter fuzzing. "
+            "Faster than gobuster, supports virtual host fuzzing, POST body fuzzing. "
+            "Use when gobuster is too slow or for API endpoint discovery."
         ),
         "parameters": {
-            "answer": {"type": "string", "required": True, "description": "Final answer / summary for the user"},
+            "url":      {"type": "string",  "required": True,  "description": "Target URL with FUZZ keyword e.g. http://10.0.0.5/FUZZ"},
+            "wordlist": {"type": "string",  "required": False, "description": "Wordlist path. Default: /usr/share/wordlists/dirb/common.txt"},
+            "method":   {"type": "string",  "required": False, "description": "HTTP method: GET/POST. Default: GET"},
+            "timeout":  {"type": "integer", "required": False, "description": "Timeout seconds. Default: 60"},
         },
     },
-]
+
+    {
+        "name": "nuclei_scan",
+        "category": "vuln",
+        "dangerous": False,        "description": (
+            "Run Nuclei vulnerability scanner with community templates. "
+            "Detects CVEs, misconfigurations, exposed panels, default creds, XSS, SSRF, etc. "
+            "One of the most powerful automated web vuln scanners. Use after HTTP enumeration."
+        ),
+        "parameters": {
+            "target":    {"type": "string",  "required": True,  "description": "Target URL or IP e.g. http://10.0.0.5/ or 10.0.0.5"},
+            "templates": {"type": "string",  "required": False, "description": "Template category: cves/misconfiguration/default-logins/exposures/all. Default: cves,misconfiguration"},
+            "timeout":   {"type": "integer", "required": False, "description": "Timeout seconds. Default: 180"},
+        },
+    },
+
+    {
+        "name": "subfinder_scan",
+        "category": "recon",
+        "dangerous": False,
+        "description": (
+            "Passive subdomain enumeration using subfinder. "
+            "Discovers subdomains via certificate transparency, DNS records, and public sources. "
+            "Use when target is a domain name to find additional attack surface."
+        ),
+        "parameters": {
+            "domain":   {"type": "string",  "required": True,  "description": "Target domain e.g. example.com"},
+            "timeout":  {"type": "integer", "required": False, "description": "Timeout seconds. Default: 60"},
+        },
+    },
+
+    {
+        "name": "sqlmap_scan",
+        "category": "vuln",
+        "dangerous": True,
+        "description": (
+            "Automated SQL injection detection and exploitation with sqlmap. "
+            "Tests forms, parameters, cookies for SQL injection. Can dump databases. "
+            "DANGEROUS — always requires human approval."
+        ),
+        "parameters": {
+            "url":     {"type": "string",  "required": True,  "description": "Target URL with parameter e.g. http://10.0.0.5/login.php?id=1"},
+            "data":    {"type": "string",  "required": False, "description": "POST data e.g. username=admin&pass=test"},
+            "level":   {"type": "integer", "required": False, "description": "Test level 1-5. Default: 1"},
+            "timeout": {"type": "integer", "required": False, "description": "Timeout seconds. Default: 120"},
+        },
+    },
+
+    {
+        "name": "xss_test",
+        "category": "vuln",
+        "dangerous": False,
+        "description": (
+            "Test for reflected and stored Cross-Site Scripting (XSS) vulnerabilities. "
+            "Injects common XSS payloads into URL parameters and form fields. "
+            "Use on web apps after directory enumeration finds forms/parameters."
+        ),
+        "parameters": {
+            "url":     {"type": "string",  "required": True,  "description": "Target URL with parameter e.g. http://10.0.0.5/search?q=test"},
+            "param":   {"type": "string",  "required": False, "description": "Specific parameter to test. Default: tests all params"},
+            "timeout": {"type": "integer", "required": False, "description": "Timeout seconds. Default: 30"},
+        },
+    },
+
+    {
+        "name": "sqli_test",
+        "category": "vuln",
+        "dangerous": False,
+        "description": (
+            "Quick manual SQL injection probe — tests common payloads to detect SQLi. "
+            "Faster than sqlmap, good for initial detection. Does NOT exploit, just detects. "
+            "Use before sqlmap_scan to confirm SQLi is present."
+        ),
+        "parameters": {
+            "url":     {"type": "string",  "required": True,  "description": "Target URL with parameter"},
+            "param":   {"type": "string",  "required": False, "description": "Parameter name to test"},
+            "timeout": {"type": "integer", "required": False, "description": "Timeout seconds. Default: 30"},
+        },
+    },
+
+    {
+        "name": "lfi_test",
+        "category": "vuln",
+        "dangerous": False,
+        "description": (
+            "Test for Local File Inclusion (LFI) vulnerabilities. "
+            "Tries common traversal payloads to read /etc/passwd and other sensitive files. "
+            "Use when URL parameters accept file paths or include directives."
+        ),
+        "parameters": {
+            "url":     {"type": "string",  "required": True,  "description": "Target URL with file parameter e.g. http://10.0.0.5/page.php?file=home"},
+            "param":   {"type": "string",  "required": False, "description": "Parameter to test. Default: auto-detect"},
+            "timeout": {"type": "integer", "required": False, "description": "Timeout seconds. Default: 30"},
+        },
+    },
+
+    {
+        "name": "ssrf_test",
+        "category": "vuln",
+        "dangerous": False,
+        "description": (
+            "Test for Server-Side Request Forgery (SSRF) vulnerabilities. "
+            "Checks if server fetches attacker-controlled URLs via parameters. "
+            "Use on web apps that fetch remote resources (image URLs, webhooks, etc.)."
+        ),
+        "parameters": {
+            "url":     {"type": "string",  "required": True,  "description": "Target URL with parameter that accepts URLs"},
+            "param":   {"type": "string",  "required": False, "description": "Parameter to test for SSRF"},
+            "timeout": {"type": "integer", "required": False, "description": "Timeout seconds. Default: 30"},
+        },
+    },
+
+    {
+        "name": "cors_test",
+        "category": "vuln",
+        "dangerous": False,
+        "description": (
+            "Test for CORS (Cross-Origin Resource Sharing) misconfigurations. "
+            "Checks if server reflects arbitrary Origin headers, allowing cross-origin attacks. "
+            "Use on APIs and web apps that serve authenticated data."
+        ),
+        "parameters": {
+            "url":     {"type": "string",  "required": True,  "description": "Target URL e.g. http://10.0.0.5/api/data"},
+            "timeout": {"type": "integer", "required": False, "description": "Timeout seconds. Default: 15"},
+        },
+    },
+
+    {
+        "name": "cmd_injection_test",
+        "category": "vuln",
+        "dangerous": False,
+        "description": (
+            "Test for OS command injection vulnerabilities. "
+            "Injects shell metacharacters into parameters to detect command execution. "
+            "Use on forms/parameters that might pass input to system commands."
+        ),
+        "parameters": {
+            "url":     {"type": "string",  "required": True,  "description": "Target URL with injectable parameter"},
+            "param":   {"type": "string",  "required": False, "description": "Parameter name to test"},
+            "timeout": {"type": "integer", "required": False, "description": "Timeout seconds. Default: 30"},
+        },
+    },
+
+    {
+        "name": "jwt_analyze",
+        "category": "vuln",
+        "dangerous": False,
+        "description": (
+            "Analyze JWT tokens for vulnerabilities: alg:none, weak secrets, RS256→HS256 confusion. "
+            "Decodes and checks JWT from cookies or Authorization headers. "
+            "Use when target app uses JWT authentication."
+        ),
+        "parameters": {
+            "token":  {"type": "string",  "required": True,  "description": "JWT token string to analyze"},
+            "secret": {"type": "string",  "required": False, "description": "Known secret to verify signature (optional)"},
+        },
+    },
+
+]  # END TOOLS
+
 
 # ─────────────────────────────────────────────────────────────
-#  Lookup helpers
+#  Helpers for agent / API
 # ─────────────────────────────────────────────────────────────
-
-_TOOL_MAP: dict[str, dict] = {t["name"]: t for t in TOOLS}
-
 
 def get_tool(name: str) -> dict | None:
-    return _TOOL_MAP.get(name)
-
-
-def get_all_tools() -> list[dict]:
-    return TOOLS
+    """Return tool definition by name."""
+    for t in TOOLS:
+        if t["name"] == name:
+            return t
+    return None
 
 
 def is_dangerous(name: str) -> bool:
-    t = _TOOL_MAP.get(name)
+    """Return True if tool requires human approval."""
+    t = get_tool(name)
     return bool(t and t.get("dangerous"))
 
 
-def tools_prompt() -> str:
-    """Format all tools as a compact string for the LLM system prompt."""
-    lines = []
+def tools_by_category(category: str) -> list[dict]:
+    """Filter tools by category."""
+    return [t for t in TOOLS if t.get("category") == category]
+
+
+def get_tool_schema_for_ollama() -> list[dict]:
+    """
+    Convert TOOLS into Ollama's tool_calls schema format.
+    Each tool becomes: {type: function, function: {name, description, parameters}}
+    """
+    result = []
     for t in TOOLS:
-        params = ", ".join(
-            f"{k}({'required' if v['required'] else 'optional'})"
-            for k, v in t.get("parameters", {}).items()
-        )
-        lines.append(f"  [{t['category']}] {t['name']}({params})\n    → {t['description']}")
-    return "\n\n".join(lines)
+        params_schema: dict = {"type": "object", "properties": {}, "required": []}
+        for pname, pdef in (t.get("parameters") or {}).items():
+            params_schema["properties"][pname] = {
+                "type": pdef.get("type", "string"),
+                "description": pdef.get("description", ""),
+            }
+            if pdef.get("required"):
+                params_schema["required"].append(pname)
+        result.append({
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": params_schema,
+            }
+        })
+    return result
+
+
+# Backwards-compat alias used by some modules
+TOOL_REGISTRY = get_tool_schema_for_ollama()
+
+
+def get_all_tools() -> list[dict]:
+    """Return all tool definitions (used by react_loop._build_tool_schemas)."""
+    return TOOLS
+
+
+def get_dangerous_tools() -> list[str]:
+    """Return names of all tools that require HITL approval."""
+    return [t["name"] for t in TOOLS if t.get("dangerous")]
+"dangerous")]

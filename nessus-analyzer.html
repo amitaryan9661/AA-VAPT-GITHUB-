@@ -1111,6 +1111,12 @@ document.addEventListener('DOMContentLoaded',function(){if(typeof _themeBtnSync=
     <div class="nav-tab" data-page="settings" onclick="showPage('settings',this)">
       <span class="sb-icon">⚙️</span><span class="sb-label">Settings</span>
     </div>
+    <!-- Dashboard -->
+    <a href="dashboard.html" target="_blank" style="text-decoration:none">
+      <div class="nav-tab" style="border-top:1px solid var(--border);margin-top:4px;margin-left:4px;margin-right:4px;border-radius:8px;background:linear-gradient(135deg,#7c3aed11,#a78bfa11)">
+        <span class="sb-icon">📊</span><span class="sb-label">Dashboard</span>
+      </div>
+    </a>
     <!-- WebApp PT — opens in new tab -->
     <a href="webapp-pt.html" target="_blank" style="text-decoration:none">
       <div class="nav-tab" style="border-top:1px solid var(--border);margin-top:4px;margin-left:4px;margin-right:4px;border-radius:8px;background:linear-gradient(135deg,#6366f111,#818cf811)">
@@ -2556,18 +2562,61 @@ function _tOpen(s){
 }
 function _tBuildFallback(s){
   s.fallback=true;
+  s.pane.style.cssText='position:absolute;inset:0;display:flex;flex-direction:column;padding:4px';
   s.pane.innerHTML=''
-    +'<div style="font-size:11px;color:#fbbf24;margin-bottom:6px;flex:none">⚡ Lite mode — type a command + Enter. Real WSL bash; colors limited.</div>'
-    +'<pre class="term-fb-out" style="flex:1 1 0;min-height:0;overflow:auto;margin:0;padding:8px;background:#000;color:#d1d5db;font-family:Menlo,Consolas,monospace;font-size:12.5px;white-space:pre-wrap;word-break:break-word;border-radius:6px"></pre>'
-    +'<div style="display:flex;gap:6px;align-items:center;margin-top:6px;flex:none"><span style="color:#1a7f37;font-family:monospace;font-weight:700">$</span>'
-    +'<input class="term-fb-in" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type a command and press Enter" style="flex:1;background:#0a0e17;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 9px;font-family:Menlo,Consolas,monospace;font-size:12.5px;outline:none"/></div>';
+    +'<div style="font-size:11px;color:#fbbf24;padding:3px 6px;margin-bottom:4px;flex:none;display:flex;align-items:center;gap:8px">'
+    +'<span>⚡ WSL Bridge — real Kali Linux commands</span>'
+    +'<span id="term-fb-mode-'+s.id+'" style="color:#94a3b8;font-size:10px">connecting…</span>'
+    +'</div>'
+    +'<pre class="term-fb-out" style="flex:1 1 0;min-height:0;overflow:auto;margin:0;padding:10px;background:#000;color:#d1d5db;font-family:Menlo,Consolas,monospace;font-size:12.5px;white-space:pre-wrap;word-break:break-word;border-radius:6px;line-height:1.5"></pre>'
+    +'<div style="display:flex;gap:6px;align-items:center;margin-top:5px;flex:none">'
+    +'<span style="color:#34d399;font-family:monospace;font-weight:700;font-size:13px">$</span>'
+    +'<input class="term-fb-in" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type a command and press Enter" '
+    +'style="flex:1;background:#0a0e17;border:1px solid #334155;color:#e2e8f0;border-radius:6px;padding:8px 10px;font-family:Menlo,Consolas,monospace;font-size:13px;outline:none;transition:border-color .15s"/>'
+    +'<button onclick="termCtrlC()" title="Ctrl+C — kill running command" style="padding:6px 10px;border-radius:6px;border:1px solid #7f1d1d;background:#450a0a;color:#fca5a5;font-size:11px;cursor:pointer;font-weight:700">⛔ C</button>'
+    +'</div>';
   s.outEl=s.pane.querySelector('.term-fb-out');
   s.inEl=s.pane.querySelector('.term-fb-in');
+  // History
+  s._hist=[]; s._histIdx=-1;
+  s.inEl.addEventListener('focus',function(){ this.style.borderColor='#0a7ea4'; });
+  s.inEl.addEventListener('blur',function(){ this.style.borderColor='#334155'; });
   s.inEl.addEventListener('keydown',function(e){
-    if(e.key==='Enter'){ e.preventDefault(); var line=s.inEl.value; s.inEl.value='';
-      if(s.ws&&s.ws.readyState===1) s.ws.send(JSON.stringify({type:'input',data:line+'\n'})); else s.queue.push(line+'\n');
-    } else if(e.key==='c'&&e.ctrlKey){ if(s.ws&&s.ws.readyState===1) s.ws.send(JSON.stringify({type:'input',data:String.fromCharCode(3)})); }
+    if(e.key==='Enter'){
+      e.preventDefault();
+      var line=s.inEl.value.trim(); if(!line) return;
+      // Add to history
+      if(s._hist[s._hist.length-1]!==line) s._hist.push(line);
+      s._histIdx=-1;
+      s.inEl.value='';
+      if(s.ws&&s.ws.readyState===1) s.ws.send(JSON.stringify({type:'input',data:line+'\n'}));
+      else s.queue.push(line+'\n');
+    } else if(e.key==='c'&&e.ctrlKey){
+      e.preventDefault();
+      if(s.ws&&s.ws.readyState===1) s.ws.send(JSON.stringify({type:'input',data:String.fromCharCode(3)}));
+    } else if(e.key==='ArrowUp'){
+      e.preventDefault();
+      if(s._hist.length){
+        s._histIdx=s._histIdx<0?s._hist.length-1:Math.max(0,s._histIdx-1);
+        s.inEl.value=s._hist[s._histIdx]||'';
+      }
+    } else if(e.key==='ArrowDown'){
+      e.preventDefault();
+      if(s._hist.length && s._histIdx>=0){
+        s._histIdx=Math.min(s._hist.length-1,s._histIdx+1);
+        s.inEl.value=(s._histIdx>=s._hist.length-1)?'':s._hist[s._histIdx];
+        if(s._histIdx>=s._hist.length-1) s._histIdx=-1;
+      }
+    } else if(e.key==='l'&&e.ctrlKey){
+      e.preventDefault(); if(s.outEl) s.outEl.textContent=''; s.log='';
+    }
   });
+}
+function _tUpdateFbMode(s, status){
+  var el=document.getElementById('term-fb-mode-'+s.id); if(!el) return;
+  var map={connecting:'🔄 connecting…',connected:'✅ connected (WSL bridge)',disconnected:'🔌 disconnected — click Reconnect',error:'❌ connection error'};
+  el.textContent=map[status]||status;
+  el.style.color={connecting:'#fbbf24',connected:'#34d399',disconnected:'#94a3b8',error:'#f87171'}[status]||'#94a3b8';
 }
 function _tWrite(s,d){
   if(s.term){ s.log += _stripAnsi(d); s.term.write(d); return; }   // xterm handles clear natively
@@ -2587,12 +2636,18 @@ function _tConnect(s){
   try{ s.ws=new WebSocket(_termWsUrl()); }catch(e){ s.status='error'; _tRenderTabs(); return; }
   s.ws.binaryType='arraybuffer';
   s.ws.onopen=function(){ s.status='connected'; _tRenderTabs(); _tSetStatusIfActive(s); _tFit(s);
+    if(s.fallback) _tUpdateFbMode(s,'connected');
     if(s.term) s.ws.send(JSON.stringify({type:'resize',cols:s.term.cols||80,rows:s.term.rows||24}));
     while(s.queue.length) s.ws.send(JSON.stringify({type:'input',data:s.queue.shift()}));
+    if(s.inEl) try{s.inEl.focus();}catch(e){}
   };
   s.ws.onmessage=function(ev){ var d=ev.data; if(d instanceof ArrayBuffer) d=new TextDecoder().decode(d); _tWrite(s,d); };
-  s.ws.onclose=function(){ s.status='disconnected'; _tRenderTabs(); _tSetStatusIfActive(s); };
-  s.ws.onerror=function(){ s.status='error'; _tRenderTabs(); };
+  s.ws.onclose=function(){ s.status='disconnected'; _tRenderTabs(); _tSetStatusIfActive(s);
+    if(s.fallback) _tUpdateFbMode(s,'disconnected');
+  };
+  s.ws.onerror=function(){ s.status='error'; _tRenderTabs();
+    if(s.fallback) _tUpdateFbMode(s,'error');
+  };
 }
 function _tSetStatusIfActive(s){
   if(!s||s.id!==TACT) return;
@@ -2600,6 +2655,7 @@ function _tSetStatusIfActive(s){
   var map={connecting:['connecting…','#fbbf24'],connected:['connected','#34d399'],disconnected:['disconnected','#94a3b8'],error:['error','#f87171']};
   var m=map[s.status]||['',''];
   el.textContent='● '+m[0]; el.style.color=m[1];
+  if(s.fallback) _tUpdateFbMode(s, s.status);
 }
 function termSwitchTab(id){
   TACT=id;

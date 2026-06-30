@@ -5,349 +5,344 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AA-VAPT — AI Agent</title>
 <style>
-  :root {
-    --bg: #0d1117; --bg2: #161b22; --bg3: #1c2128;
-    --border: #30363d; --green: #3fb950; --red: #f85149;
-    --yellow: #d29922; --blue: #58a6ff; --purple: #bc8cff;
-    --orange: #ffa657; --text: #e6edf3; --muted: #8b949e;
-    --critical: #f85149; --high: #ffa657;
-    --medium: #d29922; --low: #3fb950; --info: #58a6ff;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+:root {
+  --bg:#0d1117; --bg2:#161b22; --bg3:#1c2128; --bg4:#21262d;
+  --border:#30363d; --green:#3fb950; --red:#f85149; --yellow:#d29922;
+  --blue:#58a6ff; --purple:#bc8cff; --orange:#ffa657; --cyan:#39d353;
+  --text:#e6edf3; --muted:#8b949e;
+  --crit:#f85149; --high:#ffa657; --med:#d29922; --low:#3fb950; --info:#58a6ff;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
 
-  /* Header */
-  header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-  .logo { font-size: 18px; font-weight: 700; color: var(--green); }
-  .logo span { color: var(--text); }
-  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-left: auto; }
-  .status-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
-  .header-status { font-size: 12px; color: var(--muted); }
+/* Header */
+header{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.logo{font-size:17px;font-weight:700;color:var(--green);letter-spacing:.5px;}
+.logo span{color:var(--text);}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:16px;}
+.status-pill{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:4px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--muted);transition:.3s;}
+.sdot.on{background:var(--green);box-shadow:0 0 6px var(--green);}
+.hdr-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:5px 12px;border-radius:6px;font-size:12px;cursor:pointer;transition:.2s;}
+.hdr-btn:hover{background:var(--bg3);color:var(--text);}
 
-  /* Layout */
-  .app { display: flex; flex: 1; overflow: hidden; }
+/* Layout */
+.app{display:flex;flex:1;overflow:hidden;}
 
-  /* Sidebar */
-  .sidebar { width: 260px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; }
-  .sidebar-header { padding: 12px 16px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border); }
-  .session-list { flex: 1; overflow-y: auto; padding: 8px; }
-  .session-item { padding: 8px 10px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; margin-bottom: 4px; transition: all .15s; }
-  .session-item:hover { background: var(--bg3); border-color: var(--border); }
-  .session-item.active { background: var(--bg3); border-color: var(--blue); }
-  .session-goal { font-size: 12px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .session-meta { font-size: 10px; color: var(--muted); margin-top: 2px; }
-  .session-status { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; }
-  .session-status.running { background: rgba(58,166,255,.15); color: var(--blue); }
-  .session-status.completed { background: rgba(63,185,80,.15); color: var(--green); }
-  .session-status.error { background: rgba(248,81,73,.15); color: var(--red); }
+/* Sidebar */
+.sidebar{width:240px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
+.sidebar-hdr{padding:10px 14px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.2px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.new-btn{background:var(--green);color:#000;border:none;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;}
+.new-btn:hover{filter:brightness(1.15);}
+.session-list{flex:1;overflow-y:auto;padding:6px;}
+.sess{padding:8px 10px;border-radius:6px;cursor:pointer;border:1px solid transparent;margin-bottom:3px;transition:.15s;}
+.sess:hover{background:var(--bg3);border-color:var(--border);}
+.sess.active{background:var(--bg3);border-color:var(--blue);}
+.sess-goal{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sess-meta{font-size:10px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:6px;}
+.badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;}
+.badge.running{background:rgba(88,166,255,.15);color:var(--blue);}
+.badge.completed{background:rgba(63,185,80,.15);color:var(--green);}
+.badge.error{background:rgba(248,81,73,.15);color:var(--red);}
+.sidebar-section{border-top:1px solid var(--border);padding:10px 14px;}
+.sidebar-section-hdr{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+.quick-btn{width:100%;text-align:left;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin-bottom:4px;transition:.15s;}
+.quick-btn:hover{border-color:var(--blue);color:var(--blue);}
 
-  /* Main chat area */
-  .chat-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-  .messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
-  .messages::-webkit-scrollbar { width: 6px; }
-  .messages::-webkit-scrollbar-track { background: transparent; }
-  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
 
-  /* Message bubbles */
-  .msg { display: flex; gap: 12px; max-width: 900px; animation: fadeIn .2s ease; }
-  @keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform:none; } }
-  .msg.user { flex-direction: row-reverse; align-self: flex-end; }
-  .msg-avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
-  .msg.user .msg-avatar { background: var(--blue); }
-  .msg.agent .msg-avatar { background: var(--green); }
-  .msg-body { flex: 1; }
-  .msg-bubble { padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
-  .msg.user .msg-bubble { background: var(--blue); color: #fff; border-radius: 12px 0 12px 12px; }
-  .msg.agent .msg-bubble { background: var(--bg2); border: 1px solid var(--border); border-radius: 0 12px 12px 12px; }
-  .msg-time { font-size: 10px; color: var(--muted); margin-top: 4px; }
-  .msg.user .msg-time { text-align: right; }
+/* Tabs */
+.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;flex-shrink:0;}
+.tab{padding:10px 16px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:.2s;}
+.tab.active{color:var(--text);border-bottom-color:var(--blue);}
+.tab:hover:not(.active){color:var(--text);}
 
-  /* Agent step cards */
-  .step-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; margin: 4px 0; overflow: hidden; }
-  .step-header { padding: 8px 12px; display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
-  .step-header:hover { background: var(--bg3); }
-  .step-icon { font-size: 14px; }
-  .step-label { font-size: 12px; font-weight: 600; }
-  .step-tool { font-size: 11px; color: var(--muted); margin-left: auto; font-family: monospace; }
-  .step-body { padding: 8px 12px; font-size: 12px; border-top: 1px solid var(--border); display: none; }
-  .step-body.open { display: block; }
-  .step-thought { color: var(--muted); font-style: italic; margin-bottom: 6px; }
-  .step-obs { background: var(--bg); border-radius: 4px; padding: 8px; font-family: monospace; font-size: 11px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+/* Tab panels */
+.panel{flex:1;overflow:hidden;display:none;flex-direction:column;}
+.panel.active{display:flex;}
 
-  /* Thinking indicator */
-  .thinking { display: flex; align-items: center; gap: 8px; padding: 10px 16px; color: var(--muted); font-size: 13px; }
-  .dots { display: flex; gap: 4px; }
-  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--blue); animation: bounce .8s infinite; }
-  .dot:nth-child(2) { animation-delay: .15s; }
-  .dot:nth-child(3) { animation-delay: .3s; }
-  @keyframes bounce { 0%,60%,100% { transform: none; } 30% { transform: translateY(-6px); } }
+/* ── Chat Panel ── */
+.messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;}
+.messages::-webkit-scrollbar{width:5px;}
+.messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
 
-  /* HITL Approval card */
-  .hitl-card { background: var(--bg2); border: 2px solid var(--yellow); border-radius: 10px; padding: 16px; max-width: 500px; }
-  .hitl-title { font-size: 14px; font-weight: 700; color: var(--yellow); margin-bottom: 8px; }
-  .hitl-tool { font-family: monospace; background: var(--bg); padding: 6px 10px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; }
-  .hitl-reason { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
-  .hitl-args { font-family: monospace; font-size: 11px; background: var(--bg); padding: 8px; border-radius: 4px; margin-bottom: 12px; max-height: 100px; overflow-y: auto; white-space: pre-wrap; }
-  .hitl-btns { display: flex; gap: 8px; }
-  .btn-approve { background: var(--green); color: #000; border: none; padding: 8px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; }
-  .btn-deny { background: var(--red); color: #fff; border: none; padding: 8px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; }
-  .hitl-timer { font-size: 11px; color: var(--muted); margin-top: 8px; }
+/* Messages */
+.msg{display:flex;gap:10px;max-width:860px;animation:fadeIn .2s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
+.msg.user{flex-direction:row-reverse;align-self:flex-end;}
+.avatar{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+.msg.user .avatar{background:var(--blue);}
+.msg.agent .avatar{background:var(--green);}
+.bubble{padding:10px 14px;border-radius:10px;font-size:13px;line-height:1.6;}
+.msg.user .bubble{background:var(--blue);color:#fff;border-radius:10px 2px 10px 10px;}
+.msg.agent .bubble{background:var(--bg2);border:1px solid var(--border);border-radius:2px 10px 10px 10px;}
+.msg-time{font-size:10px;color:var(--muted);margin-top:3px;}
+.msg.user .msg-time{text-align:right;}
 
-  /* Final answer */
-  .final-answer { background: linear-gradient(135deg, rgba(63,185,80,.1), rgba(58,166,255,.1)); border: 1px solid var(--green); border-radius: 10px; padding: 16px; }
-  .final-answer pre { white-space: pre-wrap; font-size: 13px; font-family: inherit; line-height: 1.7; }
+/* Step cards */
+.step-card{background:var(--bg2);border:1px solid var(--border);border-radius:7px;margin:3px 0;overflow:hidden;font-size:12px;}
+.step-hdr{padding:7px 12px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;}
+.step-hdr:hover{background:var(--bg3);}
+.step-icon{font-size:13px;}
+.step-label{font-weight:600;flex:1;}
+.step-tool{font-family:monospace;font-size:11px;color:var(--muted);background:var(--bg3);padding:2px 6px;border-radius:4px;}
+.step-chevron{font-size:10px;color:var(--muted);transition:.2s;}
+.step-body{padding:8px 12px;border-top:1px solid var(--border);display:none;}
+.step-body.open{display:block;}
+.thought{color:var(--muted);font-style:italic;margin-bottom:5px;font-size:11px;}
+.obs{background:var(--bg);border-radius:4px;padding:8px;font-family:monospace;font-size:11px;max-height:200px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;color:var(--cyan);}
 
-  /* Report block */
-  .report-block { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; font-size: 12px; max-height: 400px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; }
-  .report-copy { float: right; background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-bottom: 8px; }
+/* Final answer */
+.final-card{background:var(--bg2);border:2px solid var(--green);border-radius:10px;padding:16px;margin:4px 0;}
+.final-hdr{font-size:13px;font-weight:700;color:var(--green);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.final-body{font-size:13px;line-height:1.7;white-space:pre-wrap;}
+.final-stats{display:flex;gap:16px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+.stat{font-size:11px;color:var(--muted);}
+.stat span{font-weight:700;color:var(--text);}
+.copy-btn{margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;}
+.copy-btn:hover{border-color:var(--green);color:var(--green);}
 
-  /* Badge */
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; }
-  .badge.critical { background: rgba(248,81,73,.2); color: var(--critical); }
-  .badge.high { background: rgba(255,166,87,.2); color: var(--high); }
-  .badge.medium { background: rgba(210,153,34,.2); color: var(--medium); }
-  .badge.low { background: rgba(63,185,80,.2); color: var(--low); }
-  .badge.info { background: rgba(88,166,255,.2); color: var(--info); }
+/* Inline cards */
+.info-card{background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:6px;padding:10px 14px;margin:3px 0;font-size:12px;line-height:1.5;}
+.info-card.warn{border-left-color:var(--yellow);}
+.info-card.success{border-left-color:var(--green);}
+.info-card.error{border-left-color:var(--red);}
 
-  /* Findings summary */
-  .findings-grid { display: flex; gap: 8px; flex-wrap: wrap; }
-  .finding-pill { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 11px; }
+/* HITL approval */
+.hitl-card{background:var(--bg2);border:2px solid var(--yellow);border-radius:8px;padding:14px;margin:4px 0;}
+.hitl-hdr{font-size:13px;font-weight:700;color:var(--yellow);margin-bottom:8px;}
+.hitl-tool{font-family:monospace;background:var(--bg3);padding:6px 10px;border-radius:5px;font-size:12px;margin-bottom:8px;}
+.hitl-reason{font-size:12px;color:var(--muted);margin-bottom:12px;}
+.hitl-btns{display:flex;gap:8px;}
+.approve-btn{background:var(--green);color:#000;border:none;padding:7px 18px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;}
+.deny-btn{background:none;border:1px solid var(--red);color:var(--red);padding:7px 18px;border-radius:6px;font-size:13px;cursor:pointer;}
+.approve-btn:hover{filter:brightness(1.1);}
+.deny-btn:hover{background:rgba(248,81,73,.1);}
+.hitl-timer{font-size:11px;color:var(--muted);margin-top:6px;}
 
-  /* Input area */
-  .input-area { padding: 16px 20px; background: var(--bg2); border-top: 1px solid var(--border); flex-shrink: 0; }
-  .input-row { display: flex; gap: 10px; align-items: flex-end; }
-  .input-wrap { flex: 1; position: relative; }
-  textarea { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; color: var(--text); padding: 12px 16px; font-size: 14px; resize: none; outline: none; font-family: inherit; min-height: 48px; max-height: 150px; line-height: 1.5; transition: border-color .15s; }
-  textarea:focus { border-color: var(--blue); }
-  textarea::placeholder { color: var(--muted); }
-  .send-btn { background: var(--blue); border: none; color: #fff; width: 44px; height: 44px; border-radius: 10px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s; }
-  .send-btn:hover { background: #79b8ff; }
-  .send-btn:disabled { background: var(--border); cursor: not-allowed; }
-  .input-hints { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-  .hint-chip { background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: 11px; color: var(--muted); cursor: pointer; transition: all .15s; white-space: nowrap; }
-  .hint-chip:hover { border-color: var(--blue); color: var(--text); }
-  .hint-chip.multi { border-color: var(--purple); color: var(--purple); }
-  .hint-chip.multi:hover { background: rgba(188,140,255,.1); }
+/* Thinking */
+.thinking-row{display:flex;align-items:center;gap:8px;padding:8px 16px;color:var(--muted);font-size:12px;}
+.spin{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
 
-  /* Multi-agent panel */
-  .multi-agent-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin: 4px 0; width: 100%; }
-  .ma-header { padding: 10px 14px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
-  .ma-title { font-size: 13px; font-weight: 700; color: var(--purple); }
-  .ma-phases { display: flex; gap: 6px; margin-left: auto; }
-  .phase-badge { font-size: 10px; padding: 2px 8px; border-radius: 4px; background: var(--bg3); color: var(--muted); border: 1px solid var(--border); }
-  .phase-badge.active { border-color: var(--blue); color: var(--blue); }
-  .phase-badge.done { border-color: var(--green); color: var(--green); }
-  .agent-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
-  .agent-cell { background: var(--bg2); padding: 10px 12px; min-height: 80px; }
-  .agent-cell.full { grid-column: span 2; }
-  .agent-name { font-size: 11px; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
-  .agent-status { font-size: 10px; color: var(--muted); margin-bottom: 6px; }
-  .agent-log { font-size: 10px; font-family: monospace; color: var(--muted); max-height: 80px; overflow-y: auto; }
-  .agent-log .log-line { padding: 1px 0; border-bottom: 1px solid rgba(255,255,255,.03); }
-  .agent-progress { height: 2px; background: var(--border); border-radius: 1px; margin-top: 6px; }
-  .agent-progress-bar { height: 100%; border-radius: 1px; background: var(--blue); width: 0%; transition: width .3s; }
-  .agent-running { animation: pulse 1.5s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+/* Input */
+.input-area{padding:12px 20px;border-top:1px solid var(--border);background:var(--bg2);flex-shrink:0;}
+.input-row{display:flex;gap:8px;align-items:flex-end;}
+.input-wrap{flex:1;position:relative;}
+textarea{width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:8px;font-size:13px;resize:none;outline:none;min-height:42px;max-height:140px;line-height:1.5;font-family:inherit;transition:.2s;}
+textarea:focus{border-color:var(--blue);}
+.char-hint{font-size:10px;color:var(--muted);margin-top:4px;}
+.send-btn{background:var(--blue);color:#fff;border:none;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0;transition:.2s;height:42px;}
+.send-btn:hover:not(:disabled){background:#4d9cff;}
+.send-btn:disabled{opacity:.5;cursor:not-allowed;}
+.mode-btns{display:flex;gap:6px;margin-bottom:8px;}
+.mode-btn{background:var(--bg3);border:1px solid var(--border);color:var(--muted);padding:4px 12px;border-radius:5px;font-size:11px;cursor:pointer;transition:.15s;}
+.mode-btn.active{border-color:var(--blue);color:var(--blue);}
+.mode-btn:hover:not(.active){color:var(--text);}
 
-  /* Right panel */
-  .right-panel { width: 280px; background: var(--bg2); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-  .panel-tab-bar { display: flex; border-bottom: 1px solid var(--border); }
-  .panel-tab { flex: 1; padding: 10px; text-align: center; font-size: 11px; font-weight: 600; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; transition: all .15s; }
-  .panel-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
-  .panel-content { flex: 1; overflow-y: auto; padding: 12px; display: none; }
-  .panel-content.active { display: block; }
-  .tool-item { padding: 6px 8px; border-radius: 4px; font-size: 11px; border: 1px solid var(--border); margin-bottom: 4px; }
-  .tool-name { font-family: monospace; color: var(--blue); }
-  .tool-cat { font-size: 10px; color: var(--muted); }
-  .tool-danger { color: var(--red); font-size: 10px; }
-  .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
-  .stat-val { font-weight: 700; color: var(--blue); }
+/* ── Tools Panel ── */
+.tools-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;padding:16px;overflow-y:auto;}
+.tool-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;}
+.tool-card:hover{border-color:var(--blue);}
+.tool-name{font-family:monospace;font-size:13px;font-weight:700;color:var(--blue);margin-bottom:4px;}
+.tool-cat{font-size:10px;padding:2px 7px;border-radius:4px;display:inline-block;margin-bottom:6px;}
+.cat-recon{background:rgba(88,166,255,.15);color:var(--blue);}
+.cat-enum{background:rgba(188,140,255,.15);color:var(--purple);}
+.cat-vuln{background:rgba(255,166,87,.15);color:var(--orange);}
+.cat-exploit{background:rgba(248,81,73,.15);color:var(--red);}
+.cat-memory{background:rgba(63,185,80,.15);color:var(--green);}
+.cat-report{background:rgba(210,153,34,.15);color:var(--yellow);}
+.cat-utility{background:rgba(139,148,158,.15);color:var(--muted);}
+.tool-dangerous{font-size:10px;color:var(--red);margin-top:5px;display:flex;align-items:center;gap:4px;}
 
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+/* ── Sessions Panel ── */
+.sessions-table{width:100%;border-collapse:collapse;font-size:12px;}
+.sessions-table th{text-align:left;padding:8px 12px;font-size:10px;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);}
+.sessions-table td{padding:8px 12px;border-bottom:1px solid var(--border);}
+.sessions-table tr:hover td{background:var(--bg3);}
+.sessions-wrap{overflow-y:auto;padding:16px;}
 
-  /* Responsive */
-  @media (max-width: 900px) { .sidebar, .right-panel { display: none; } }
+/* Progress bar */
+.prog-bar{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:4px;}
+.prog-fill{height:100%;background:var(--blue);border-radius:2px;transition:width .3s;}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">AA-VAPT <span>Agent</span></div>
-  <div style="font-size:12px;color:var(--muted);margin-left:8px">Autonomous Pentest AI</div>
-  <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
-    <span class="header-status" id="hdrStatus">Connecting…</span>
-    <div class="status-dot" id="statusDot"></div>
+  <div class="logo">AA-<span>VAPT</span> <span style="color:var(--purple);font-size:13px;">&#10022; AI Agent</span></div>
+  <div class="hdr-right">
+    <div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;">
+      <span style="color:var(--purple)">&#9670;</span> <span id="modelName">loading&hellip;</span>
+    </div>
+    <div class="status-pill">
+      <span class="sdot" id="sdot"></span>
+      <span id="statusTxt">Connecting&hellip;</span>
+    </div>
+    <button class="hdr-btn" onclick="window.location='/'">&#8592; Dashboard</button>
   </div>
 </header>
 
 <div class="app">
-  <!-- Sidebar: sessions -->
+  <!-- Sidebar -->
   <aside class="sidebar">
-    <div class="sidebar-header">Sessions</div>
-    <div class="session-list" id="sessionList">
-      <div style="padding:16px;color:var(--muted);font-size:12px">No sessions yet</div>
+    <div class="sidebar-hdr">
+      Sessions
+      <button class="new-btn" onclick="newSession()">+ New</button>
     </div>
-    <div style="padding:10px;border-top:1px solid var(--border)">
-      <button onclick="newChat()" style="width:100%;background:var(--blue);border:none;color:#fff;padding:8px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600">+ New Session</button>
+    <div class="session-list" id="sessionList"></div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-hdr">Quick Scan</div>
+      <button class="quick-btn" onclick="quickScan('pentest')">&#127919; Full Pentest</button>
+      <button class="quick-btn" onclick="quickScan('web')">&#128375; Web Vulnerability Scan</button>
+      <button class="quick-btn" onclick="quickScan('ssl')">&#128274; SSL/TLS Audit</button>
+      <button class="quick-btn" onclick="quickScan('recon')">&#128506; Network Recon</button>
+      <button class="quick-btn" onclick="quickScan('report')">&#128196; Generate Report</button>
     </div>
   </aside>
 
-  <!-- Main chat -->
-  <main class="chat-area">
-    <div class="messages" id="messages">
-      <!-- Welcome message -->
-      <div class="msg agent">
-        <div class="msg-avatar">🤖</div>
-        <div class="msg-body">
-          <div class="msg-bubble">
-            <strong>AA-VAPT Agent ready.</strong><br><br>
-            Type any instruction in plain English — the agent will plan and execute it.<br><br>
-            <b>Examples:</b><br>
-            • <code>pentest 192.168.1.50</code><br>
-            • <code>SSL check port 443 on 10.0.0.5</code><br>
-            • <code>Detect attack chains</code><br>
-            • <code>What are the critical findings?</code><br>
-            • <code>Generate a pentest report</code><br>
-            • <code>What are the high severity vulnerabilities?</code>
+  <!-- Main area -->
+  <div class="main">
+    <div class="tabs">
+      <div class="tab active" id="tab-chat" onclick="switchTab('chat')">&#128172; Chat</div>
+      <div class="tab" id="tab-tools" onclick="switchTab('tools')">&#128295; Tools (<span id="toolCount">0</span>)</div>
+      <div class="tab" id="tab-sessions" onclick="switchTab('sessions')">&#128203; All Sessions</div>
+    </div>
+
+    <!-- Chat Panel -->
+    <div class="panel active" id="panel-chat">
+      <div class="messages" id="messages">
+        <div class="info-card" style="max-width:600px;">
+          <b style="color:var(--blue)">AA-VAPT AI Agent</b> &mdash; Autonomous penetration testing powered by local LLM.<br>
+          <span style="color:var(--muted);font-size:11px;">
+            Type a target + task in natural language. Examples:<br>
+            &bull; <code>pentest 192.168.1.50</code><br>
+            &bull; <code>web vulnerability scan http://10.0.0.5/</code><br>
+            &bull; <code>ssl audit on 10.0.0.5 port 443</code><br>
+            &bull; <code>generate penetration test report</code>
+          </span>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <div class="mode-btns">
+          <button class="mode-btn active" id="mode-agent" onclick="setMode('agent')">&#129302; Agent (full automation)</button>
+          <button class="mode-btn" id="mode-multi" onclick="setMode('multi')">&#128279; Multi-Agent (parallel)</button>
+          <button class="mode-btn" id="mode-chat" onclick="setMode('chat')">&#128172; Quick Chat</button>
+        </div>
+        <div class="input-row">
+          <div class="input-wrap">
+            <textarea id="msgInput" placeholder="e.g. pentest 192.168.1.50 — or ask a security question…" rows="1"
+              onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
           </div>
-          <div class="msg-time">Now</div>
+          <button class="send-btn" id="sendBtn" onclick="sendMessage()">&#9654; Run</button>
         </div>
+        <div class="char-hint">Enter to send &middot; Shift+Enter for newline</div>
       </div>
     </div>
 
-    <div class="input-area">
-      <div class="input-row">
-        <div class="input-wrap">
-          <textarea id="msgInput" placeholder="Type any instruction… e.g. 'pentest 192.168.1.10' or 'generate report'" rows="1" onkeydown="onKey(event)" oninput="autoResize(this)"></textarea>
-        </div>
-        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send (Enter)">➤</button>
+    <!-- Tools Panel -->
+    <div class="panel" id="panel-tools">
+      <div id="toolsFilter" style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="mode-btn active" onclick="filterTools('all',this)">All</button>
+        <button class="mode-btn" onclick="filterTools('recon',this)">Recon</button>
+        <button class="mode-btn" onclick="filterTools('enum',this)">Enum</button>
+        <button class="mode-btn" onclick="filterTools('vuln',this)">Vuln</button>
+        <button class="mode-btn" onclick="filterTools('exploit',this)">Exploit</button>
+        <button class="mode-btn" onclick="filterTools('memory',this)">Memory</button>
+        <button class="mode-btn" onclick="filterTools('report',this)">Report</button>
       </div>
-      <div class="input-hints">
-        <span class="hint-chip" onclick="setInput('pentest 192.168.1.1')">🎯 Full Pentest</span>
-        <span class="hint-chip multi" onclick="sendMultiAgent('pentest 192.168.1.1')">🤖 Multi-Agent</span>
-        <span class="hint-chip" onclick="setInput('Detect attack chains')">⛓️ Attack Chains</span>
-        <span class="hint-chip" onclick="setInput('SSL check port 443')">🔐 SSL Check</span>
-        <span class="hint-chip" onclick="setInput('Show critical findings')">🔍 Findings</span>
-        <span class="hint-chip" onclick="setInput('Generate pentest report')">📄 Report</span>
-      </div>
+      <div class="tools-grid" id="toolsGrid"></div>
     </div>
-  </main>
 
-  <!-- Right panel -->
-  <aside class="right-panel">
-    <div class="panel-tab-bar">
-      <div class="panel-tab active" onclick="switchTab('tools',this)">Tools</div>
-      <div class="panel-tab" onclick="switchTab('stats',this)">Stats</div>
-      <div class="panel-tab" onclick="switchTab('findings',this)">Findings</div>
+    <!-- Sessions Panel -->
+    <div class="panel" id="panel-sessions">
+      <div class="sessions-wrap">
+        <table class="sessions-table" id="sessionsTable">
+          <thead><tr>
+            <th>Session ID</th><th>Goal</th><th>Target</th>
+            <th>Status</th><th>Steps</th><th>Findings</th><th>Started</th>
+          </tr></thead>
+          <tbody id="sessionsBody"></tbody>
+        </table>
+      </div>
     </div>
-    <div class="panel-content active" id="tab-tools"></div>
-    <div class="panel-content" id="tab-stats">
-      <div class="stat-row"><span>Sessions</span><span class="stat-val" id="statSessions">0</span></div>
-      <div class="stat-row"><span>Steps taken</span><span class="stat-val" id="statSteps">0</span></div>
-      <div class="stat-row"><span>Findings</span><span class="stat-val" id="statFindings">0</span></div>
-      <div class="stat-row"><span>Ollama</span><span class="stat-val" id="statOllama">—</span></div>
-      <div class="stat-row"><span>Model</span><span class="stat-val" id="statModel" style="font-size:10px">—</span></div>
-    </div>
-    <div class="panel-content" id="tab-findings">
-      <div id="findingsList" style="color:var(--muted);font-size:12px">No findings yet</div>
-    </div>
-  </aside>
+  </div>
 </div>
 
 <script>
-const API = 'http://localhost:8000';
-let ws = null;
-let currentSessionId = null;
-let agentRunning = false;
-let thinkingEl = null;
-let stepCount = 0;
-let allFindings = [];
+var API = '';
+var ws = null;
+var wsRetryTimer = null;
+var agentRunning = false;
+var currentSessionId = null;
+var currentMode = 'agent';
+var allTools = [];
+var pendingHITL = {};
+var stepCount = 0;
 
-// ── Boot ──────────────────────────────────────────────────────
-window.onload = async () => {
+// ── Init ──────────────────────────────────────────────────────
+window.onload = function() {
   connectWS();
-  await loadTools();
-  await loadStatus();
-  await loadSessions();
-  setInterval(loadSessions, 10000);
-  setInterval(loadStatus, 15000);
+  loadTools();
+  loadStatus();
+  loadSessions();
+  setInterval(loadSessions, 15000);
+  setInterval(loadStatus, 20000);
 };
 
 // ── WebSocket ─────────────────────────────────────────────────
 function connectWS() {
-  ws = new WebSocket(`ws://localhost:8000/ws`);
-  ws.onopen = () => {
-    setStatus(true);
+  if (ws) { try { ws.close(); } catch(e){} }
+  ws = new WebSocket('ws://' + location.host + '/ws');
+  ws.onopen = function() {
+    setOnline(true);
     ws.send('ping');
   };
-  ws.onmessage = e => {
-    try { handleEvent(JSON.parse(e.data)); } catch(_) {}
+  ws.onmessage = function(e) {
+    try { handleEvent(JSON.parse(e.data)); } catch(e2) {}
   };
-  ws.onclose = () => {
-    setStatus(false);
-    setTimeout(connectWS, 3000);
+  ws.onclose = function() {
+    setOnline(false);
+    wsRetryTimer = setTimeout(connectWS, 3000);
   };
-  ws.onerror = () => setStatus(false);
+  ws.onerror = function() { setOnline(false); };
 }
 
-function setStatus(online) {
-  document.getElementById('statusDot').className = 'status-dot' + (online ? ' online' : '');
-  document.getElementById('hdrStatus').textContent = online ? 'Connected' : 'Reconnecting…';
+function setOnline(on) {
+  document.getElementById('sdot').className = 'sdot' + (on ? ' on' : '');
+  document.getElementById('statusTxt').textContent = on ? 'Connected' : 'Reconnecting…';
 }
 
-// ── Multi-agent state ─────────────────────────────────────────
-let multiCardEl = null;
-const agentColors = {recon:'var(--blue)',web:'var(--green)',exploit:'var(--red)',report:'var(--purple)'};
-
-// ── Agent event handler ───────────────────────────────────────
+// ── Event handler ─────────────────────────────────────────────
 function handleEvent(ev) {
-  const sid = ev.session_id;
-  if (sid && sid !== currentSessionId) return; // ignore other sessions
+  if (!ev.event) return;
 
-  // Multi-agent orchestrator events
-  switch (ev.event) {
-    case 'orchestrator_start':
-      removeThinking();
-      multiCardEl = createMultiAgentCard(ev);
-      return;
-    case 'orchestrator_phase':
-      updatePhase(ev.phase);
-      return;
-    case 'orchestrator_done':
-      removeThinking();
-      agentRunning = false;
-      document.getElementById('sendBtn').disabled = false;
-      finalizeMultiCard(ev);
-      showFinalAnswer(ev.final_report, ev.total_steps, ev.total_findings);
-      loadSessions();
-      return;
-    case 'orchestrator_error':
-      removeThinking();
-      agentRunning = false;
-      document.getElementById('sendBtn').disabled = false;
-      appendAgentCard(`❌ <b>Multi-Agent Error:</b> ${esc(ev.error)}`, 'error');
-      return;
-  }
-
-  // Per-agent events — update agent cell
-  if (ev.agent && multiCardEl) {
-    updateAgentCell(ev);
-    // Don't return — also handle normal step rendering below
+  // Filter to current session
+  var sessionEvents = ['agent_start','agent_step','agent_thinking','agent_tool_start','agent_tool_done',
+    'agent_observation','agent_done','agent_error','agent_approval_required',
+    'orchestrator_start','orchestrator_done','orchestrator_phase'];
+  if (currentSessionId && ev.session_id && ev.session_id !== currentSessionId) {
+    if (sessionEvents.indexOf(ev.event) !== -1) return;
   }
 
   switch (ev.event) {
     case 'agent_start':
       removeThinking();
-      appendAgentCard(`🚀 <b>Starting:</b> ${esc(ev.goal)}${ev.target ? ` → <code>${esc(ev.target)}</code>` : ''}`, 'info');
-      if (ev.planned_tools?.length)
-        appendAgentCard(`📋 <b>Plan:</b> ${ev.planned_tools.map(t => `<code>${t}</code>`).join(' → ')}`, 'info');
+      addInfoCard('<b>&#128640; Goal:</b> ' + esc(ev.goal||'') + (ev.target ? ' &nbsp;&rarr;&nbsp; <code>' + esc(ev.target) + '</code>' : ''), 'info');
+      if (ev.planned_tools && ev.planned_tools.length)
+        addInfoCard('<b>&#128203; Plan:</b> ' + ev.planned_tools.map(function(t){return '<code>'+esc(t)+'</code>';}).join(' &rarr; '), 'info');
       break;
 
     case 'agent_thinking':
-      showThinking(`Step ${ev.step} — Agent is thinking…`);
+      showThinking('Step ' + (ev.step||'?') + ' &mdash; Thinking&hellip;');
       break;
 
     case 'agent_step':
@@ -356,7 +351,7 @@ function handleEvent(ev) {
       break;
 
     case 'agent_tool_start':
-      showThinking(`⚙️ Running <b>${esc(ev.tool)}</b>…`);
+      showThinking('&#9881;&#65039; Running <b>' + esc(ev.tool||'') + '</b>&hellip;');
       break;
 
     case 'agent_tool_done':
@@ -364,6 +359,7 @@ function handleEvent(ev) {
       break;
 
     case 'agent_observation':
+      removeThinking();
       updateStepObs(ev.step, ev.observation_preview);
       break;
 
@@ -372,20 +368,19 @@ function handleEvent(ev) {
       showHITL(ev);
       break;
 
+    case 'agent_hitl_result':
     case 'agent_approval_response':
       removeHITL(ev.approval_id);
-      appendAgentCard(
-        ev.approved
-          ? `✅ Action <code>${esc(ev.tool_name||'')}</code> <b style="color:var(--green)">APPROVED</b>`
-          : `🚫 Action <b style="color:var(--red)">DENIED</b> — skipped.`,
-        ev.approved ? 'success' : 'warn'
-      );
+      addInfoCard(ev.approved
+        ? '&#9989; <code>' + esc(ev.tool_name||'') + '</code> <b style="color:var(--green)">APPROVED</b>'
+        : '&#128683; <code>' + esc(ev.tool_name||'') + '</code> <b style="color:var(--red)">DENIED</b> &mdash; skipped.',
+        ev.approved ? 'success' : 'warn');
       break;
 
     case 'agent_done':
       removeThinking();
       agentRunning = false;
-      document.getElementById('sendBtn').disabled = false;
+      unlockInput();
       showFinalAnswer(ev.final_answer, ev.step_count, ev.finding_count);
       loadSessions();
       break;
@@ -393,518 +388,492 @@ function handleEvent(ev) {
     case 'agent_error':
       removeThinking();
       agentRunning = false;
-      document.getElementById('sendBtn').disabled = false;
-      appendAgentCard(`❌ <b>Error:</b> ${esc(ev.error)}`, 'error');
+      unlockInput();
+      addInfoCard('&#10060; <b>Agent Error:</b> ' + esc(ev.error||'Unknown error'), 'error');
+      break;
+
+    case 'orchestrator_start':
+      removeThinking();
+      addOrchestratorCard(ev);
+      break;
+
+    case 'orchestrator_phase':
+      updateOrcPhase(ev);
+      break;
+
+    case 'orchestrator_done':
+      removeThinking();
+      agentRunning = false;
+      unlockInput();
+      showFinalAnswer(ev.final_report || ev.summary, ev.total_steps, ev.total_findings);
+      loadSessions();
+      break;
+
+    case 'orchestrator_error':
+      removeThinking();
+      agentRunning = false;
+      unlockInput();
+      addInfoCard('&#10060; <b>Orchestrator Error:</b> ' + esc(ev.error||''), 'error');
       break;
   }
 }
 
-// ── Send message ──────────────────────────────────────────────
-async function sendMessage() {
-  const input = document.getElementById('msgInput');
-  const msg = input.value.trim();
+// ── Send ──────────────────────────────────────────────────────
+function sendMessage() {
+  var inp = document.getElementById('msgInput');
+  var msg = inp.value.trim();
   if (!msg || agentRunning) return;
 
-  input.value = '';
-  autoResize(input);
+  inp.value = '';
+  autoResize(inp);
   agentRunning = true;
   stepCount = 0;
-  document.getElementById('sendBtn').disabled = true;
-
-  // User bubble
+  lockInput();
   appendUserMsg(msg);
+  switchTab('chat');
 
-  // Start agent
-  try {
-    const res = await fetch(`${API}/api/agent/run`, {
+  if (currentMode === 'chat') {
+    addInfoCard('&#128172; Asking AI&hellip;', 'info');
+    fetch(API + '/api/agent/chat', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({message: msg})
+    }).then(function(r){ return r.json(); }).then(function(data) {
+      if (data.answer) {
+        var msgs = document.getElementById('messages');
+        var el = document.createElement('div');
+        el.className = 'msg agent';
+        el.innerHTML = '<div class="avatar">&#129302;</div>' +
+          '<div><div class="bubble">' + esc(data.answer).replace(/\n/g,'<br>') + '</div>' +
+          '<div class="msg-time">' + ts() + ' &middot; Quick Chat &middot; ' + esc(data.model||'') + '</div></div>';
+        msgs.appendChild(el);
+        scrollBottom();
+      }
+      agentRunning = false;
+      unlockInput();
+    }).catch(function(err) {
+      addInfoCard('&#10060; ' + esc(err.message), 'error');
+      agentRunning = false;
+      unlockInput();
     });
-    const data = await res.json();
+    return;
+  }
+
+  var endpoint = currentMode === 'multi' ? '/api/agent/multi/run' : '/api/agent/run';
+  fetch(API + endpoint, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({message: msg})
+  }).then(function(r){ return r.json(); }).then(function(data) {
     if (data.session_id) {
       currentSessionId = data.session_id;
-      updateSessionsList(data);
+      updateSessionHighlight();
     } else {
-      throw new Error(data.detail || 'Unknown error');
+      throw new Error(data.detail || 'Failed to start agent');
     }
-  } catch (err) {
+  }).catch(function(err) {
     agentRunning = false;
-    document.getElementById('sendBtn').disabled = false;
-    appendAgentCard(`❌ <b>Failed:</b> ${esc(err.message)}`, 'error');
-  }
+    unlockInput();
+    addInfoCard('&#10060; <b>Failed to start:</b> ' + esc(err.message), 'error');
+  });
 }
 
 function onKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 }
 
-function setInput(txt) {
-  const el = document.getElementById('msgInput');
-  el.value = txt;
-  el.focus();
-  autoResize(el);
+function lockInput() {
+  document.getElementById('sendBtn').disabled = true;
+  document.getElementById('msgInput').disabled = true;
+}
+function unlockInput() {
+  document.getElementById('sendBtn').disabled = false;
+  document.getElementById('msgInput').disabled = false;
 }
 
-function autoResize(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 150) + 'px';
+// ── Mode ──────────────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  ['agent','multi','chat'].forEach(function(m) {
+    document.getElementById('mode-' + m).classList.toggle('active', m === mode);
+  });
+  var placeholders = {
+    agent: 'e.g. pentest 192.168.1.50 — autonomous AI agent',
+    multi: 'e.g. full pentest 10.0.0.5 — parallel multi-agent pipeline',
+    chat: 'Ask a security question about loaded scan data…'
+  };
+  document.getElementById('msgInput').placeholder = placeholders[mode];
+  document.getElementById('sendBtn').textContent = mode === 'chat' ? '► Ask' : '► Run';
 }
 
 // ── DOM helpers ───────────────────────────────────────────────
 function appendUserMsg(text) {
-  const msgs = document.getElementById('messages');
-  const el = document.createElement('div');
+  var msgs = document.getElementById('messages');
+  var el = document.createElement('div');
   el.className = 'msg user';
-  el.innerHTML = `
-    <div class="msg-avatar">👤</div>
-    <div class="msg-body">
-      <div class="msg-bubble">${esc(text)}</div>
-      <div class="msg-time">${now()}</div>
-    </div>`;
+  el.innerHTML = '<div class="avatar">&#128100;</div>' +
+    '<div><div class="bubble">' + esc(text) + '</div>' +
+    '<div class="msg-time">' + ts() + ' &middot; ' + modeLabel() + '</div></div>';
   msgs.appendChild(el);
   scrollBottom();
 }
 
-function appendAgentCard(html, type='info') {
-  const colors = {info:'var(--blue)',success:'var(--green)',warn:'var(--yellow)',error:'var(--red)'};
-  const msgs = document.getElementById('messages');
-  const el = document.createElement('div');
-  el.className = 'msg agent';
-  el.innerHTML = `
-    <div class="msg-avatar" style="background:${colors[type]||'var(--blue)'}">🤖</div>
-    <div class="msg-body">
-      <div class="msg-bubble">${html}</div>
-      <div class="msg-time">${now()}</div>
-    </div>`;
+function modeLabel() {
+  return {agent:'Agent Mode',multi:'Multi-Agent',chat:'Quick Chat'}[currentMode]||'';
+}
+
+function addInfoCard(html, type) {
+  type = type || 'info';
+  var msgs = document.getElementById('messages');
+  var el = document.createElement('div');
+  el.className = 'info-card ' + type;
+  el.innerHTML = html;
   msgs.appendChild(el);
   scrollBottom();
   return el;
 }
 
-function addStep(num, thought, action, args) {
-  stepCount = num;
-  const msgs = document.getElementById('messages');
-  const icons = {nmap_scan:'🗺️',check_ssl:'🔐',ssh_audit:'🔑',nikto_scan:'🕷️',
-    smb_check:'💾',http_headers_check:'📋',detect_attack_chains:'⛓️',
-    analyze_finding:'🔬',search_memory:'🧠',generate_report:'📄',
-    get_loaded_findings:'📊',epss_check:'🎯',brute_force_ssh:'🔓',
-    run_metasploit_module:'💥',think:'💭',finish:'✅',ask_human:'❓'};
-  const icon = icons[action] || '⚙️';
-  const card = document.createElement('div');
-  card.className = 'msg agent';
-  card.id = `step-${num}`;
-  const argsStr = JSON.stringify(args || {}, null, 2);
-  card.innerHTML = `
-    <div class="msg-avatar" style="background:var(--purple)">🤖</div>
-    <div class="msg-body" style="width:100%">
-      <div class="step-card">
-        <div class="step-header" onclick="toggleStep(${num})">
-          <span class="step-icon">${icon}</span>
-          <span class="step-label">Step ${num}</span>
-          <span class="step-tool">${action}()</span>
-        </div>
-        <div class="step-body" id="stepbody-${num}">
-          ${thought ? `<div class="step-thought">💭 ${esc(thought)}</div>` : ''}
-          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Args:</div>
-          <div class="step-obs">${esc(argsStr)}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:8px;margin-bottom:4px">Observation:</div>
-          <div class="step-obs" id="obs-${num}">⏳ Running…</div>
-        </div>
-      </div>
-      <div class="msg-time">${now()}</div>
-    </div>`;
-  msgs.appendChild(card);
+var stepIcons = {
+  nmap_scan:'&#128269;', check_ssl:'&#128274;', ssh_audit:'&#128421;&#65039;',
+  http_headers_check:'&#128203;', nikto_scan:'&#128375;', smb_check:'&#128194;',
+  ftp_check:'&#128193;', nuclei_scan:'&#9762;&#65039;', gobuster_scan:'&#128193;',
+  ffuf_scan:'&#9889;', whatweb_scan:'&#127760;', subfinder_scan:'&#127757;',
+  sqlmap_scan:'&#128137;', xss_test:'&#127919;', sqli_test:'&#128137;',
+  lfi_test:'&#128196;', ssrf_test:'&#128256;', cors_test:'&#127760;',
+  cmd_injection_test:'&#128187;', jwt_analyze:'&#128273;',
+  brute_force_ssh:'&#128273;', run_metasploit_module:'&#128165;',
+  detect_attack_chains:'&#9939;&#65039;', epss_check:'&#128202;',
+  generate_report:'&#128196;', analyze_finding:'&#128300;',
+  search_memory:'&#129504;', get_loaded_findings:'&#128203;',
+  think:'&#128161;', finish:'&#9989;', ask_human:'&#10067;',
+  generate_poc_script:'&#128220;'
+};
+
+function addStep(step, thought, action, args) {
+  stepCount++;
+  var msgs = document.getElementById('messages');
+  var id = 'step-' + step;
+  var icon = stepIcons[action] || '&#9881;&#65039;';
+  var argsStr = JSON.stringify(args||{});
+  var el = document.createElement('div');
+  el.className = 'step-card';
+  el.id = id;
+  el.innerHTML =
+    '<div class="step-hdr" onclick="toggleStep(\'' + id + '\')">' +
+      '<span class="step-icon">' + icon + '</span>' +
+      '<span class="step-label">Step ' + step + '</span>' +
+      '<span class="step-tool">' + esc(action||'') + '</span>' +
+      '<span class="step-chevron" id="' + id + '-chev">&#9654;</span>' +
+    '</div>' +
+    '<div class="step-body" id="' + id + '-body">' +
+      (thought ? '<div class="thought">&#128161; ' + esc(thought) + '</div>' : '') +
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:4px;"><code>' + esc(action||'') + '</code>(' + esc(argsStr.slice(1,-1)) + ')</div>' +
+      '<div class="obs" id="' + id + '-obs">Running…</div>' +
+    '</div>';
+  msgs.appendChild(el);
   scrollBottom();
 }
 
-function updateStepObs(num, obs) {
-  const el = document.getElementById(`obs-${num}`);
-  if (el) {
-    el.textContent = obs || '(empty)';
-    // Auto-open if it has content
-    const body = document.getElementById(`stepbody-${num}`);
-    if (body && !body.classList.contains('open')) body.classList.add('open');
-  }
+function updateStepObs(step, preview) {
+  var el = document.getElementById('step-' + step + '-obs');
+  if (el) el.textContent = preview || '';
 }
 
-function toggleStep(num) {
-  const body = document.getElementById(`stepbody-${num}`);
+function toggleStep(id) {
+  var body = document.getElementById(id + '-body');
+  var chev = document.getElementById(id + '-chev');
   if (body) body.classList.toggle('open');
+  if (chev) chev.innerHTML = body && body.classList.contains('open') ? '&#9660;' : '&#9654;';
 }
 
 function showThinking(msg) {
   removeThinking();
-  const msgs = document.getElementById('messages');
-  thinkingEl = document.createElement('div');
-  thinkingEl.id = 'thinking-indicator';
-  thinkingEl.className = 'msg agent';
-  thinkingEl.innerHTML = `
-    <div class="msg-avatar" style="background:var(--muted)">🤖</div>
-    <div class="msg-body">
-      <div class="thinking">
-        <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
-        <span>${msg}</span>
-      </div>
-    </div>`;
-  msgs.appendChild(thinkingEl);
+  var msgs = document.getElementById('messages');
+  var el = document.createElement('div');
+  el.className = 'thinking-row';
+  el.id = 'thinking';
+  el.innerHTML = '<div class="spin"></div> ' + msg;
+  msgs.appendChild(el);
   scrollBottom();
 }
 
 function removeThinking() {
-  if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; }
-}
-
-function showHITL(ev) {
-  const msgs = document.getElementById('messages');
-  const card = document.createElement('div');
-  card.className = 'msg agent';
-  card.id = `hitl-${ev.approval_id}`;
-  const argsHtml = JSON.stringify(ev.args || {}, null, 2);
-  card.innerHTML = `
-    <div class="msg-avatar" style="background:var(--yellow)">⚠️</div>
-    <div class="msg-body">
-      <div class="hitl-card">
-        <div class="hitl-title">⚠️ Human Approval Required</div>
-        <div class="hitl-tool">${esc(ev.tool_name)}</div>
-        <div class="hitl-reason">${esc(ev.reason || 'This is a dangerous action.')}</div>
-        <div class="hitl-args">${esc(argsHtml)}</div>
-        <div class="hitl-btns">
-          <button class="btn-approve" onclick="respondHITL('${ev.approval_id}',true)">✅ Approve</button>
-          <button class="btn-deny" onclick="respondHITL('${ev.approval_id}',false)">🚫 Deny</button>
-        </div>
-        <div class="hitl-timer" id="hitl-timer-${ev.approval_id}">Expires in 120s</div>
-      </div>
-      <div class="msg-time">${now()}</div>
-    </div>`;
-  msgs.appendChild(card);
-  scrollBottom();
-  // Countdown
-  let secs = 120;
-  const iv = setInterval(() => {
-    secs--;
-    const t = document.getElementById(`hitl-timer-${ev.approval_id}`);
-    if (t) t.textContent = `Expires in ${secs}s`;
-    if (secs <= 0) { clearInterval(iv); removeHITL(ev.approval_id); }
-  }, 1000);
-}
-
-function removeHITL(aid) {
-  const el = document.getElementById(`hitl-${aid}`);
+  var el = document.getElementById('thinking');
   if (el) el.remove();
 }
 
-async function respondHITL(approvalId, approved) {
-  removeHITL(approvalId);
-  await fetch(`${API}/api/agent/approve`, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({approval_id: approvalId, approved})
-  });
-}
-
 function showFinalAnswer(answer, steps, findings) {
-  const msgs = document.getElementById('messages');
-  const card = document.createElement('div');
-  card.className = 'msg agent';
-
-  // Check if it's a markdown report
-  const isReport = answer && answer.includes('# ') && answer.length > 500;
-
-  card.innerHTML = `
-    <div class="msg-avatar" style="background:var(--green)">🤖</div>
-    <div class="msg-body" style="width:100%">
-      <div class="msg-bubble">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
-          ✅ Done — ${steps} steps, ${findings} findings
-        </div>
-        <div class="final-answer">
-          ${isReport
-            ? `<button class="report-copy" onclick="copyReport(this)">📋 Copy</button>
-               <div class="report-block" id="reportBlock">${esc(answer)}</div>`
-            : `<pre>${esc(answer)}</pre>`}
-        </div>
-      </div>
-      <div class="msg-time">${now()}</div>
-    </div>`;
-  msgs.appendChild(card);
-  scrollBottom();
-
-  // Update findings panel
-  if (findings > 0) loadSessionFindings();
-}
-
-function copyReport(btn) {
-  const block = btn.nextElementSibling;
-  navigator.clipboard.writeText(block.textContent);
-  btn.textContent = '✅ Copied!';
-  setTimeout(() => btn.textContent = '📋 Copy', 2000);
-}
-
-// ── Panel ─────────────────────────────────────────────────────
-function switchTab(name, el) {
-  document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.panel-content').forEach(c => c.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('tab-' + name).classList.add('active');
-}
-
-async function loadTools() {
-  try {
-    const res = await fetch(`${API}/api/agent/tools`);
-    const data = await res.json();
-    const el = document.getElementById('tab-tools');
-    el.innerHTML = data.tools.map(t => `
-      <div class="tool-item">
-        <div class="tool-name">${t.name}</div>
-        <div class="tool-cat">${t.category} ${t.dangerous ? '<span class="tool-danger">⚠ DANGEROUS</span>':''}</div>
-      </div>`).join('');
-  } catch(e) {}
-}
-
-async function loadStatus() {
-  try {
-    const res = await fetch(`${API}/api/status`);
-    const d = await res.json();
-    document.getElementById('statOllama').textContent = d.ollama?.running ? '🟢 Online' : '🔴 Offline';
-    document.getElementById('statModel').textContent = d.ollama?.active || '—';
-  } catch(e) {}
-}
-
-async function loadSessions() {
-  try {
-    const res = await fetch(`${API}/api/agent/sessions`);
-    const data = await res.json();
-    const sessions = data.sessions || [];
-    document.getElementById('statSessions').textContent = sessions.length;
-    const totalSteps = sessions.reduce((a,s) => a + (s.step_count||0), 0);
-    const totalFindings = sessions.reduce((a,s) => a + (s.finding_count||0), 0);
-    document.getElementById('statSteps').textContent = totalSteps;
-    document.getElementById('statFindings').textContent = totalFindings;
-
-    const el = document.getElementById('sessionList');
-    if (!sessions.length) {
-      el.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:12px">No sessions yet</div>';
-      return;
-    }
-    el.innerHTML = sessions.reverse().map(s => `
-      <div class="session-item ${s.session_id === currentSessionId ? 'active':''}"
-           onclick="loadSession('${s.session_id}')">
-        <div class="session-goal">${esc(s.goal)}</div>
-        <div class="session-meta">
-          <span class="session-status ${s.status}">${s.status}</span>
-          · ${s.step_count} steps · ${s.finding_count} findings
-        </div>
-      </div>`).join('');
-  } catch(e) {}
-}
-
-async function loadSession(sid) {
-  currentSessionId = sid;
-  await loadSessions();
-}
-
-async function loadSessionFindings() {
-  if (!currentSessionId) return;
-  try {
-    const res = await fetch(`${API}/api/agent/session/${currentSessionId}`);
-    const sess = await res.json();
-    const findings = sess.findings || [];
-    const el = document.getElementById('findingsList');
-    if (!findings.length) {
-      el.innerHTML = '<div style="color:var(--muted);font-size:12px">No findings yet</div>';
-      return;
-    }
-    el.innerHTML = findings.map(f => `
-      <div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:11px">
-        <span class="badge ${f.severity||'info'}">${(f.severity||'info').toUpperCase()}</span>
-        <div style="margin-top:2px">${esc(f.name||'?')}</div>
-        <div style="color:var(--muted)">${esc(f.host||'')}${f.port ? ':'+f.port : ''}</div>
-      </div>`).join('');
-  } catch(e) {}
-}
-
-function updateSessionsList(data) {
-  loadSessions();
-}
-
-// ── Multi-agent send ──────────────────────────────────────────
-async function sendMultiAgent(prefill) {
-  const input = document.getElementById('msgInput');
-  const msg = prefill || input.value.trim();
-  if (!msg || agentRunning) return;
-
-  input.value = '';
-  autoResize(input);
-  agentRunning = true;
-  multiCardEl = null;
-  document.getElementById('sendBtn').disabled = true;
-
-  appendUserMsg('🤖 [Multi-Agent] ' + msg);
-
-  try {
-    const res = await fetch(`${API}/api/agent/multi/run`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({message: msg})
-    });
-    const data = await res.json();
-    if (data.session_id) {
-      currentSessionId = data.session_id;
-      loadSessions();
-    } else throw new Error(data.detail || 'Unknown error');
-  } catch(err) {
-    agentRunning = false;
-    document.getElementById('sendBtn').disabled = false;
-    appendAgentCard(`❌ <b>Failed:</b> ${esc(err.message)}`, 'error');
-  }
-}
-
-function createMultiAgentCard(ev) {
-  const msgs = document.getElementById('messages');
-  const el = document.createElement('div');
-  el.className = 'msg agent';
-  el.id = 'multi-agent-card';
-  el.innerHTML = `
-    <div class="msg-avatar" style="background:var(--purple)">🤖</div>
-    <div class="msg-body" style="width:100%">
-      <div class="multi-agent-card">
-        <div class="ma-header">
-          <span style="font-size:16px">🤖</span>
-          <div>
-            <div class="ma-title">Multi-Agent Pentest</div>
-            <div style="font-size:11px;color:var(--muted)">${esc(ev.goal)}</div>
-          </div>
-          <div class="ma-phases" id="ma-phases">
-            <span class="phase-badge" id="phase-1">Phase 1: Recon+Web</span>
-            <span class="phase-badge" id="phase-2">Phase 2: Exploit</span>
-            <span class="phase-badge" id="phase-3">Phase 3: Report</span>
-          </div>
-        </div>
-        <div class="agent-grid" id="agent-grid">
-          <div class="agent-cell" id="cell-recon">
-            <div class="agent-name"><span>🗺️</span> ReconAgent</div>
-            <div class="agent-status" id="status-recon">⏳ Waiting…</div>
-            <div class="agent-log" id="log-recon"></div>
-            <div class="agent-progress"><div class="agent-progress-bar" id="pb-recon"></div></div>
-          </div>
-          <div class="agent-cell" id="cell-web">
-            <div class="agent-name"><span>🕷️</span> WebAgent</div>
-            <div class="agent-status" id="status-web">⏳ Waiting…</div>
-            <div class="agent-log" id="log-web"></div>
-            <div class="agent-progress"><div class="agent-progress-bar" id="pb-web" style="background:var(--green)"></div></div>
-          </div>
-          <div class="agent-cell" id="cell-exploit">
-            <div class="agent-name"><span>💥</span> ExploitAgent</div>
-            <div class="agent-status" id="status-exploit">⏳ Waiting…</div>
-            <div class="agent-log" id="log-exploit"></div>
-            <div class="agent-progress"><div class="agent-progress-bar" id="pb-exploit" style="background:var(--red)"></div></div>
-          </div>
-          <div class="agent-cell" id="cell-report">
-            <div class="agent-name"><span>📄</span> ReportAgent</div>
-            <div class="agent-status" id="status-report">⏳ Waiting…</div>
-            <div class="agent-log" id="log-report"></div>
-            <div class="agent-progress"><div class="agent-progress-bar" id="pb-report" style="background:var(--purple)"></div></div>
-          </div>
-        </div>
-      </div>
-      <div class="msg-time">${now()}</div>
-    </div>`;
+  if (!answer) return;
+  var msgs = document.getElementById('messages');
+  var el = document.createElement('div');
+  el.className = 'final-card';
+  var safeAnswer = esc(answer||'').replace(/\n/g,'<br>');
+  el.innerHTML =
+    '<div class="final-hdr">&#9989; Agent Complete' +
+      '<button class="copy-btn" onclick="copyFinal(this)" data-text="' + answer.replace(/"/g,'&quot;') + '">&#128203; Copy</button>' +
+    '</div>' +
+    '<div class="final-body">' + safeAnswer + '</div>' +
+    '<div class="final-stats">' +
+      '<div class="stat">Steps: <span>' + (steps||0) + '</span></div>' +
+      '<div class="stat">Findings: <span>' + (findings||0) + '</span></div>' +
+      '<div class="stat">Session: <span>' + esc(currentSessionId||'') + '</span></div>' +
+    '</div>';
   msgs.appendChild(el);
   scrollBottom();
-  return el;
 }
 
-function updateAgentCell(ev) {
-  const agent = ev.agent;
-  if (!agent) return;
-  const statusEl = document.getElementById(`status-${agent}`);
-  const logEl    = document.getElementById(`log-${agent}`);
-  const pbEl     = document.getElementById(`pb-${agent}`);
-
-  if (ev.event === 'agent_start') {
-    if (statusEl) { statusEl.textContent = '🟡 Running…'; statusEl.className = 'agent-status agent-running'; }
-    if (pbEl) pbEl.style.width = '10%';
-  } else if (ev.event === 'agent_step') {
-    const pct = Math.min(90, 10 + ev.step * 12);
-    if (pbEl) pbEl.style.width = pct + '%';
-    if (logEl) {
-      const line = document.createElement('div');
-      line.className = 'log-line';
-      line.textContent = `Step ${ev.step}: ${ev.action}()`;
-      logEl.appendChild(line);
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-  } else if (ev.event === 'agent_done') {
-    if (statusEl) { statusEl.textContent = `✅ Done (${ev.step_count} steps, ${ev.finding_count} findings)`; statusEl.className = 'agent-status'; statusEl.style.color = 'var(--green)'; }
-    if (pbEl) pbEl.style.width = '100%';
-  } else if (ev.event === 'agent_thinking') {
-    if (logEl) {
-      const line = document.createElement('div');
-      line.className = 'log-line';
-      line.textContent = `Step ${ev.step}: thinking…`;
-      logEl.appendChild(line);
-      logEl.scrollTop = logEl.scrollHeight;
-    }
+function copyFinal(btn) {
+  var text = btn.getAttribute('data-text') || '';
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function(){ btn.textContent = '✓ Copied'; });
   }
 }
 
-function updatePhase(num) {
-  for (let i = 1; i <= 3; i++) {
-    const el = document.getElementById(`phase-${i}`);
-    if (!el) continue;
-    if (i < num) el.className = 'phase-badge done';
-    else if (i === num) el.className = 'phase-badge active';
-    else el.className = 'phase-badge';
-  }
+// ── HITL ──────────────────────────────────────────────────────
+function showHITL(ev) {
+  var id = ev.approval_id;
+  pendingHITL[id] = ev;
+  var msgs = document.getElementById('messages');
+  var el = document.createElement('div');
+  el.className = 'hitl-card';
+  el.id = 'hitl-' + id;
+  var args = JSON.stringify(ev.args||{}, null, 2);
+  el.innerHTML =
+    '<div class="hitl-hdr">&#9888;&#65039; Human Approval Required</div>' +
+    '<div class="hitl-tool"><b>' + esc(ev.tool_name||'') + '</b></div>' +
+    '<div class="hitl-reason">' + esc(ev.reason||'This action requires your approval.') + '</div>' +
+    '<pre style="background:var(--bg3);padding:8px;border-radius:5px;font-size:11px;margin-bottom:12px;overflow-x:auto;">' + esc(args) + '</pre>' +
+    '<div class="hitl-btns">' +
+      '<button class="approve-btn" onclick="sendHITL(\'' + id + '\',true)">&#9989; Approve</button>' +
+      '<button class="deny-btn" onclick="sendHITL(\'' + id + '\',false)">&#128683; Deny</button>' +
+    '</div>' +
+    '<div class="hitl-timer" id="hitl-timer-' + id + '">Expires in ' + (ev.expires_in||120) + 's</div>';
+  msgs.appendChild(el);
+  scrollBottom();
+
+  var remaining = ev.expires_in || 120;
+  var timerEl = document.getElementById('hitl-timer-' + id);
+  var iv = setInterval(function() {
+    remaining--;
+    if (timerEl) timerEl.textContent = 'Expires in ' + remaining + 's';
+    if (remaining <= 0) { clearInterval(iv); removeHITL(id); }
+  }, 1000);
 }
 
-function finalizeMultiCard(ev) {
-  const agents = ev.agents || [];
-  agents.forEach(a => {
-    const statusEl = document.getElementById(`status-${a.agent}`);
-    const pbEl = document.getElementById(`pb-${a.agent}`);
-    if (statusEl && a.status !== 'error') {
-      statusEl.textContent = `✅ ${a.steps} steps, ${a.findings} findings`;
-      statusEl.style.color = 'var(--green)';
-    }
-    if (pbEl) pbEl.style.width = '100%';
+function sendHITL(id, approved) {
+  fetch(API + '/api/agent/approve', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({approval_id: id, approved: approved})
+  }).catch(function(err) {
+    addInfoCard('&#10060; Approval failed: ' + esc(err.message), 'error');
   });
-  for (let i = 1; i <= 3; i++) {
-    const el = document.getElementById(`phase-${i}`);
-    if (el) el.className = 'phase-badge done';
+  removeHITL(id);
+}
+
+function removeHITL(id) {
+  var el = document.getElementById('hitl-' + id);
+  if (el) el.remove();
+  delete pendingHITL[id];
+}
+
+// ── Orchestrator ──────────────────────────────────────────────
+function addOrchestratorCard(ev) {
+  var msgs = document.getElementById('messages');
+  var el = document.createElement('div');
+  el.id = 'orc-card';
+  el.className = 'info-card';
+  var agentHtml = (ev.agents||[]).map(function(a) {
+    return '<span id="orc-' + a + '" style="padding:3px 10px;border-radius:5px;border:1px solid var(--border);font-size:11px;">' +
+      agentEmoji(a) + ' ' + a + '</span>';
+  }).join('');
+  el.innerHTML =
+    '<b style="color:var(--purple)">&#128279; Multi-Agent Pipeline</b> &mdash; ' + esc(ev.goal||'') +
+    '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">' + agentHtml + '</div>' +
+    '<div class="prog-bar"><div class="prog-fill" id="orc-prog" style="width:0%"></div></div>';
+  msgs.appendChild(el);
+  scrollBottom();
+}
+
+function updateOrcPhase(ev) {
+  var fill = document.getElementById('orc-prog');
+  if (fill) fill.style.width = ((ev.phase/3)*100) + '%';
+  if (ev.active_agents) {
+    ev.active_agents.forEach(function(a) {
+      var el = document.getElementById('orc-' + a);
+      if (el) el.style.borderColor = 'var(--blue)';
+    });
   }
 }
 
-function newChat() {
+function agentEmoji(name) {
+  return {recon:'&#128506;',web:'&#128375;',exploit:'&#128165;',report:'&#128196;'}[name]||'&#129302;';
+}
+
+// ── Sessions ──────────────────────────────────────────────────
+function newSession() {
   currentSessionId = null;
-  document.getElementById('messages').innerHTML = `
-    <div class="msg agent">
-      <div class="msg-avatar">🤖</div>
-      <div class="msg-body">
-        <div class="msg-bubble">New session ready. What would you like to do?</div>
-        <div class="msg-time">${now()}</div>
-      </div>
-    </div>`;
-  loadSessions();
+  agentRunning = false;
+  unlockInput();
+  document.getElementById('messages').innerHTML =
+    '<div class="info-card">' +
+      '<b style="color:var(--blue)">New session started.</b><br>' +
+      '<span style="color:var(--muted);font-size:11px;">Type your task below.</span>' +
+    '</div>';
+  document.getElementById('msgInput').focus();
+  switchTab('chat');
+}
+
+function quickScan(type) {
+  var prompts = {
+    pentest: 'full pentest ',
+    web: 'web vulnerability scan http://',
+    ssl: 'ssl audit on ',
+    recon: 'network reconnaissance ',
+    report: 'generate penetration test report'
+  };
+  newSession();
+  var inp = document.getElementById('msgInput');
+  inp.value = prompts[type] || '';
+  autoResize(inp);
+  inp.focus();
+  switchTab('chat');
+}
+
+// ── Tools panel ───────────────────────────────────────────────
+function loadTools() {
+  fetch(API + '/api/agent/tools').then(function(r){ return r.json(); }).then(function(data) {
+    allTools = data.tools || [];
+    document.getElementById('toolCount').textContent = allTools.length;
+    renderTools(allTools);
+  }).catch(function(){});
+}
+
+function renderTools(tools) {
+  var grid = document.getElementById('toolsGrid');
+  grid.innerHTML = tools.map(function(t) {
+    return '<div class="tool-card">' +
+      '<div class="tool-name">' + esc(t.name) + '</div>' +
+      '<span class="tool-cat cat-' + (t.category||'utility') + '">' + (t.category||'utility') + '</span>' +
+      '<div class="tool-desc">' + esc((t.description||'').slice(0,140)) + '</div>' +
+      (t.dangerous ? '<div class="tool-dangerous">&#9888;&#65039; Requires human approval</div>' : '') +
+      '</div>';
+  }).join('');
+}
+
+function filterTools(cat, btn) {
+  document.querySelectorAll('#toolsFilter .mode-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  renderTools(cat === 'all' ? allTools : allTools.filter(function(t){ return t.category === cat; }));
+}
+
+// ── Sessions panel ────────────────────────────────────────────
+function loadSessions() {
+  fetch(API + '/api/agent/sessions').then(function(r){ return r.json(); }).then(function(data) {
+    renderSessionList(data.sessions || []);
+    renderSessionsTable(data.sessions || []);
+  }).catch(function(){});
+}
+
+function renderSessionList(sessions) {
+  var el = document.getElementById('sessionList');
+  if (!sessions.length) {
+    el.innerHTML = '<div style="padding:12px;font-size:11px;color:var(--muted);">No sessions yet</div>';
+    return;
+  }
+  el.innerHTML = sessions.slice().reverse().slice(0,20).map(function(s) {
+    return '<div class="sess' + (s.session_id === currentSessionId ? ' active' : '') + '"' +
+      ' onclick="loadSession(\'' + s.session_id + '\')">' +
+      '<div class="sess-goal">' + esc((s.goal||'').slice(0,40)) + '</div>' +
+      '<div class="sess-meta">' +
+        '<span class="badge ' + (s.status||'') + '">' + (s.status||'') + '</span>' +
+        '<span>' + (s.step_count||0) + 's &middot; ' + (s.finding_count||0) + 'f</span>' +
+      '</div></div>';
+  }).join('');
+}
+
+function renderSessionsTable(sessions) {
+  var body = document.getElementById('sessionsBody');
+  body.innerHTML = sessions.slice().reverse().map(function(s) {
+    return '<tr onclick="loadSession(\'' + s.session_id + '\')" style="cursor:pointer;">' +
+      '<td><code style="font-size:11px;">' + esc(s.session_id) + '</code></td>' +
+      '<td>' + esc((s.goal||'').slice(0,60)) + '</td>' +
+      '<td><code>' + esc(s.target||'-') + '</code></td>' +
+      '<td><span class="badge ' + (s.status||'') + '">' + (s.status||'') + '</span></td>' +
+      '<td>' + (s.step_count||0) + '</td>' +
+      '<td>' + (s.finding_count||0) + '</td>' +
+      '<td style="color:var(--muted)">' + ((s.started_at||'').replace('T',' ').slice(0,16)) + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function loadSession(sid) {
+  currentSessionId = sid;
+  switchTab('chat');
+  fetch(API + '/api/agent/session/' + sid).then(function(r){ return r.json(); }).then(function(sess) {
+    var msgs = document.getElementById('messages');
+    msgs.innerHTML = '';
+    addInfoCard('<b>&#128194; Session:</b> ' + esc(sess.goal||'') + ' &nbsp;&rarr;&nbsp; <code>' + esc(sess.target||'n/a') + '</code>', 'info');
+    (sess.steps||[]).forEach(function(step) {
+      addStep(step.step_num, step.thought, step.action, step.action_input);
+      updateStepObs(step.step_num, JSON.stringify(step.observation||'').slice(0,300));
+    });
+    if (sess.final_answer) {
+      showFinalAnswer(sess.final_answer, (sess.steps||[]).length, (sess.findings||[]).length);
+    }
+    updateSessionHighlight();
+    loadSessions();
+  }).catch(function(err) {
+    addInfoCard('&#10060; Could not load session: ' + esc(err.message), 'error');
+  });
+}
+
+function updateSessionHighlight() {
+  document.querySelectorAll('.sess').forEach(function(el) {
+    var onclick = el.getAttribute('onclick') || '';
+    el.classList.toggle('active', onclick.indexOf(currentSessionId) !== -1);
+  });
+}
+
+// ── Status ────────────────────────────────────────────────────
+function loadStatus() {
+  fetch(API + '/api/status').then(function(r){ return r.json(); }).then(function(data) {
+    var model = (data.ollama && data.ollama.model) || data.model || 'unknown';
+    document.getElementById('modelName').textContent = model;
+  }).catch(function(){});
+}
+
+// ── Tabs ──────────────────────────────────────────────────────
+function switchTab(name) {
+  ['chat','tools','sessions'].forEach(function(t) {
+    document.getElementById('tab-' + t).classList.toggle('active', t === name);
+    document.getElementById('panel-' + t).classList.toggle('active', t === name);
+  });
+  if (name === 'sessions') loadSessions();
 }
 
 // ── Utilities ─────────────────────────────────────────────────
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+}
+
 function scrollBottom() {
-  const msgs = document.getElementById('messages');
+  var msgs = document.getElementById('messages');
   msgs.scrollTop = msgs.scrollHeight;
 }
 
-function esc(s) {
-  if (s == null) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function ts() {
+  return new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
 }
 
-function now() {
-  return new Date().toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'});
+function esc(s) {
+  return String(s||'')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
 }
 </script>
 </body>

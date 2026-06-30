@@ -13,12 +13,17 @@
 set -e
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOG="/tmp/vapt.log"
+LOG="$DIR/logs/backend.log"
 PID_FILE="/tmp/vapt.pid"
 PORT=8000
 VENV="$DIR/.venv"
 PYTHON="$VENV/bin/python3"
 UVICORN="$VENV/bin/uvicorn"
+# Resolve real Python binary (venv symlink may break in nohup/setsid on WSL /mnt/c/)
+PYTHON_REAL="$(readlink -f "$PYTHON" 2>/dev/null || which python3)"
+# Venv site-packages path for PYTHONPATH (so system python finds venv packages)
+PYVER="$("$PYTHON_REAL" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "3.10")"
+SITE_PKGS="$VENV/lib/python${PYVER}/site-packages"
 OLLAMA_MODEL="mistral:latest"
 
 # ── Colors ──────────────────────────────────────────────────────
@@ -48,13 +53,22 @@ _open_browser() {
 
 # ── Kill whatever is on the port ────────────────────────────────
 _kill_port() {
-    local pids
+    local pids i
     pids=$(lsof -ti:$PORT 2>/dev/null || true)
     if [ -n "$pids" ]; then
-        kill -9 $pids 2>/dev/null || true
+        kill -15 $pids 2>/dev/null || true
         sleep 1
+        # Force-kill any survivors
+        pids=$(lsof -ti:$PORT 2>/dev/null || true)
+        [ -n "$pids" ] && kill -9 $pids 2>/dev/null || true
     fi
     rm -f "$PID_FILE"
+    # Wait up to 8 seconds for port to actually be released
+    for i in 1 2 3 4 5 6 7 8; do
+        lsof -ti:$PORT > /dev/null 2>&1 || return 0
+        sleep 1
+    done
+    echo "Warning: port $PORT still busy after 8s" >&2
 }
 
 # ── Check if server is running ──────────────────────────────────
@@ -183,22 +197,29 @@ start() {
 
     info "Starting AA-VAPT backend..."
 
-    # nohup + setsid + disown = truly detached, survives terminal close
-    nohup setsid "$UVICORN" backend.main:app \
-        --host 0.0.0.0 \
-        --port $PORT \
-        --reload \
-        > "$LOG" 2>&1 &
+    # Activate venv inside bash -c so python3 and packages are correct.
+    # This bypasses the broken uvicorn shebang on WSL /mnt/c/ mounts.
+    nohup bash -c "
+        source '$VENV/bin/activate'
+        cd '$DIR'
+        exec python3 -m uvicorn backend.main:app \
+            --host 0.0.0.0 \
+            --port $PORT \
+            --reload
+    " > "$LOG" 2>&1 &
 
     echo $! > "$PID_FILE"
     disown $!
 
-    # Wait for startup
+    # Wait for startup — ChromaDB + sentence-transformers can take ~60s on first load
     local waited=0
-    while ! _is_running && [ $waited -lt 10 ]; do
-        sleep 1
-        waited=$((waited+1))
+    echo -n "  Waiting for startup"
+    while ! _is_running && [ $waited -lt 90 ]; do
+        sleep 2
+        waited=$((waited+2))
+        echo -n "."
     done
+    echo ""
 
     if _is_running; then
         ok "Backend started → http://127.0.0.1:$PORT"
@@ -207,7 +228,8 @@ start() {
         echo -e "  ${BOLD}Logs:${NC} bash demon.sh logs"
         echo ""
     else
-        fail "Failed to start — check: bash demon.sh logs"
+        fail "Failed to start. Last log lines:"
+        tail -n 20 "$LOG" 2>/dev/null | sed 's/^/  /'
         exit 1
     fi
 }
@@ -260,7 +282,7 @@ case "${1:-start}" in
     setup|install) setup ;;
     start)         start ;;
     stop)          stop ;;
-    restart)       stop; sleep 1; start ;;
+    restart)       stop; start ;;
     status)        status ;;
     logs)          logs ;;
     *)

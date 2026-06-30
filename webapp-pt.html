@@ -338,6 +338,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent)}
       <div class="burp-dot" id="ollama-dot"></div>
       <span id="ollama-label">Ollama...</span>
     </div>
+    <a href="dashboard.html" class="btn btn-ghost btn-sm" style="color:var(--accent2,#a78bfa)">📊 Dashboard</a>
     <a href="nessus-analyzer.html" class="btn btn-ghost btn-sm">← VAPT Tool</a>
   </div>
 </div>
@@ -2717,7 +2718,7 @@ function _inferType(name,val){
 function _inferTests(name,val,loc){
   const n=name.toLowerCase(), v=(val||'').toLowerCase(), t=[];
   // URL/redirect params
-  if(/url|uri|redirect|callback|next|return|dest|link|src|href/.test(n)) { t.push('SSRF','Open Redirect'); }
+  if(/url|uri|redirect|callback|next|return|dest|link|src|href/.test(n)||/^https?:\/\//i.test(v)) { t.push('SSRF','Open Redirect'); }
   // File/path
   if(/file|path|dir|folder|template|include|page|load|read|doc|attach/.test(n)) { t.push('LFI / Path Traversal'); }
   // ID → IDOR
@@ -2744,8 +2745,8 @@ function _extractPoints(parsed){
   // Query string
   if(parsed.queryString){
     parsed.queryString.split('&').forEach(pair=>{
-      const [k,v='']= pair.split('=');
-      if(!k) return;
+      const ei3=pair.indexOf('='); if(ei3<=0) return;
+      const k=pair.slice(0,ei3), v=pair.slice(ei3+1);
       const dk=decodeURIComponent(k.replace(/\+/g,' ')), dv=decodeURIComponent((v||'').replace(/\+/g,' '));
       pts.push({ location:'Query', name:dk, value:dv, type:_inferType(dk,dv), test_types:_inferTests(dk,dv,'query') });
     });
@@ -2755,8 +2756,8 @@ function _extractPoints(parsed){
   if(parsed.body){
     if(ct.includes('x-www-form-urlencoded')||(!ct.includes('json')&&!ct.includes('xml')&&!ct.includes('multipart')&&parsed.body.includes('='))){
       parsed.body.split('&').forEach(pair=>{
-        const [k,v='']= pair.split('=');
-        if(!k) return;
+        const ei2=pair.indexOf('='); if(ei2<=0) return;
+        const k=pair.slice(0,ei2), v=pair.slice(ei2+1);
         const dk=decodeURIComponent(k.replace(/\+/g,' ')), dv=decodeURIComponent((v||'').replace(/\+/g,' '));
         pts.push({ location:'Body (Form)', name:dk, value:dv, type:_inferType(dk,dv), test_types:_inferTests(dk,dv,'body') });
       });
@@ -2769,11 +2770,11 @@ function _extractPoints(parsed){
     }
   }
   // Interesting headers
-  const intHdrs = { 'x-forwarded-for':['IP Spoofing','Auth Bypass via Header'], 'x-forwarded-host':['Host Header Injection','SSRF'], 'x-real-ip':['IP Spoofing'], 'x-host':['Host Header Injection'], 'referer':['Open Redirect','SSRF','XSS via Referer'], 'user-agent':['SQLi in UA','XSS in UA','SSTI in UA'], 'origin':['CORS Misconfiguration'], 'x-original-url':['Access Control Bypass'], 'x-rewrite-url':['Access Control Bypass'], 'authorization':['JWT Attack','Weak Auth','IDOR via Auth'] };
+  const intHdrs = { 'host':['Host Header Injection'], 'x-forwarded-for':['IP Spoofing','Auth Bypass via Header'], 'x-forwarded-host':['Host Header Injection','SSRF'], 'x-real-ip':['IP Spoofing'], 'x-host':['Host Header Injection'], 'referer':['Open Redirect','SSRF','XSS via Referer','CORS Misconfiguration'], 'user-agent':['SQLi in UA','XSS in UA','SSTI in UA'], 'origin':['CORS Misconfiguration'], 'x-original-url':['Access Control Bypass'], 'x-rewrite-url':['Access Control Bypass'], 'authorization':['JWT Attack','Weak Auth','IDOR via Auth'] };
   Object.entries(parsed.headers).forEach(([k,v])=>{
     if(intHdrs[k]) pts.push({ location:'Header', name:k, value:v.slice(0,80), type:'header', test_types:intHdrs[k] });
     if(k==='cookie'){
-      v.split(';').forEach(c=>{ const [ck,cv='']= c.trim().split('='); if(!ck) return; pts.push({ location:'Cookie', name:ck.trim(), value:cv.trim(), type:_inferType(ck.trim(),cv.trim()), test_types:_inferTests(ck.trim(),cv.trim(),'cookie') }); });
+      v.split(';').forEach(c=>{ const ci=c.trim().indexOf('='); if(ci<=0)return; const ck=c.trim().slice(0,ci).trim(); const cv=c.trim().slice(ci+1).trim(); if(!ck)return; pts.push({ location:'Cookie', name:ck, value:cv, type:_inferType(ck,cv), test_types:_inferTests(ck,cv,'cookie') }); });
     }
   });
   // Path ID segments
@@ -2882,7 +2883,23 @@ const _TC_TEMPLATES = {
   'Subdomain Takeover': { wstg:'WSTG-CONF-10', severity:'high', cwe:'CWE-350', h1:0,
     payloads:['CNAME -> unclaimed S3/Heroku/GitHub Pages/Azure','dangling DNS record'],
     steps:['Step 1 — Enumerate subdomains (subfinder/amass).','Step 2 — Resolve CNAMEs; look for ones pointing to 3rd-party services (s3, herokuapp, github.io, azurewebsites).','Step 3 — Check for "NoSuchBucket"/"There is no app"/404 fingerprint = unclaimed.','Step 4 — Claim the resource -> serve content on the subdomain.','Tool: subjack, nuclei -t takeovers, can-i-take-over-xyz'],
-    expected_vuln:'Subdomain serves attacker content (takeover confirmed)',expected_safe:'No dangling records, all CNAMEs claimed' }
+    expected_vuln:'Subdomain serves attacker content (takeover confirmed)',expected_safe:'No dangling records, all CNAMEs claimed' },
+  'BOLA': { wstg:'WSTG-ATHZ-04', severity:'high', cwe:'CWE-639', h1:3200,
+    payloads:['Increment/decrement object ID by 1','Try IDs belonging to other users','Negative IDs (-1, -100)','Very large IDs (99999999)','UUID substitution from other endpoints','Change /api/resource/YOUR_ID to /api/resource/OTHER_ID'],
+    steps:['Step 1 — Enumerate: With Account A session, try accessing /api/resource/<Account_B_ID>.','Step 2 — Increment: Change path ID from 100 → 101, 99, 1, 2 and check if different user data returned.','Step 3 — Negative/Zero: Try ID=0 or ID=-1 — sometimes returns admin/system objects.','Step 4 — Method swap: POST /api/resource with body {"id":OTHER_ID} if GET is blocked.','Step 5 — Nested BOLA: Check nested objects e.g. /api/users/100/orders/200 — change both IDs.','Step 6 — Harvest IDs: Look for other user IDs in response JSON, websocket messages, or other endpoints.','Tool: Burp Intruder → Sniper on ID → Number payload 1-1000 → grep for unique responses'],
+    expected_vuln:"Another user's object data returned without 403",expected_safe:'403 Forbidden or only your own resource data' },
+  'Auth Bypass via Header': { wstg:'WSTG-ATHN-01', severity:'high', cwe:'CWE-287', h1:410,
+    payloads:['X-Forwarded-For: 127.0.0.1','X-Real-IP: 127.0.0.1','X-Originating-IP: 127.0.0.1','X-Remote-IP: 127.0.0.1','X-Client-IP: 127.0.0.1','X-Custom-IP-Authorization: 127.0.0.1'],
+    steps:['Step 1 — Add X-Forwarded-For: 127.0.0.1 to any request and retry blocked endpoints.','Step 2 — Try X-Real-IP, X-Originating-IP, X-Remote-Addr with value 127.0.0.1.','Step 3 — If endpoint is IP-restricted, cycle through RFC1918: 10.0.0.1, 192.168.1.1, 172.16.0.1.','Step 4 — Combine with method override: X-HTTP-Method-Override: GET on POST endpoint.','Step 5 — Check /admin, /internal, /debug with forged IP headers.','Tool: Burp: add header in Repeater; `curl -H "X-Forwarded-For: 127.0.0.1" URL`'],
+    expected_vuln:'Access granted to restricted endpoint after adding spoofed IP header',expected_safe:'Header ignored, IP check uses socket IP only' },
+  'XPath Injection': { wstg:'WSTG-INPV-09', severity:'high', cwe:'CWE-643', h1:80,
+    payloads:["' or '1'='1","' or 1=1 or ''='","x' or name()='username' or 'x'='y","'] | //* | //a['","admin' or '1'='1"],
+    steps:['Step 1 — Probe: Inject single quote. XML/XPath error indicates injectable.','Step 2 — Boolean test: Try `' or '1'='1` vs `' or '1'='2` — different responses = injectable.','Step 3 — Extract data: Use XPath axes: `'] | //* | //a['` to dump all nodes.','Step 4 — Blind: Use substring/string-length for character-by-character extraction.'],
+    expected_vuln:'XPath error or different responses for true/false conditions',expected_safe:'Input sanitized, no XPath error' },
+  'IP Spoofing': { wstg:'WSTG-ATHN-01', severity:'medium', cwe:'CWE-287', h1:220,
+    payloads:['X-Forwarded-For: 127.0.0.1','X-Real-IP: 127.0.0.1','X-Originating-IP: 127.0.0.1','True-Client-IP: 127.0.0.1','CF-Connecting-IP: 127.0.0.1'],
+    steps:['Step 1 — Add spoofed IP headers to bypass rate-limiting or IP whitelists.','Step 2 — Try 127.0.0.1, 10.0.0.1, 192.168.1.1 in X-Forwarded-For.','Step 3 — Check if rate-limit counter resets when IP changes via header.','Step 4 — Combine: X-Forwarded-For: 127.0.0.1, 10.0.0.1 (chained IPs).'],
+    expected_vuln:'Rate limit bypassed or access granted to whitelisted-IP-only endpoint',expected_safe:'Header ignored, rate limit enforced on real socket IP' }
 };
 
 // ── HackerOne embedded pattern database ───────────────────────────
@@ -3446,7 +3463,7 @@ function ctSwitch(mode) {
     try{var obj=JSON.parse(body);newBody=Object.entries(obj).map(function(kv){return encodeURIComponent(kv[0])+'='+encodeURIComponent(String(kv[1]));}).join('&');newCt='application/x-www-form-urlencoded';}
     catch(e){toast('Body is not valid JSON',true);return;}
   } else if(mode==='form-to-json'){
-    try{var pairs={};body.split('&').forEach(function(p){var kv=p.split('=');if(kv[0])pairs[decodeURIComponent(kv[0].replace(/\+/g,' '))]=decodeURIComponent((kv[1]||'').replace(/\+/g,' '));});newBody=JSON.stringify(pairs,null,2);newCt='application/json';}
+    try{var pairs={};body.split('&').forEach(function(p){var ei=p.indexOf('=');if(ei<=0)return;var pk=decodeURIComponent(p.slice(0,ei).replace(/\+/g,' '));var pv=decodeURIComponent(p.slice(ei+1).replace(/\+/g,' '));pairs[pk]=pv;});newBody=JSON.stringify(pairs,null,2);newCt='application/json';}
     catch(e){toast('Could not convert body',true);return;}
   } else if(mode==='form-to-xml'){
     var xmlB='<?xml version="1.0" encoding="UTF-8"?>\n<request>\n';
@@ -3612,18 +3629,25 @@ function idorCompare() {
   var pA=_parseRawRequest(rawA),pB=_parseRawRequest(rawB);
   if(!pA||!pB){out.innerHTML='<div style="color:var(--high)">Could not parse one or both requests.</div>';return;}
   var findings=[],idor=[];
+  // Path diff
   if(pA.path!==pB.path){findings.push({type:'path',label:'Path',a:pA.path,b:pB.path});if(/\/\d+/.test(pA.path)||/\/\d+/.test(pB.path))idor.push('🎯 IDOR — Path IDs: '+pA.path+' ↔ '+pB.path);}
+  // Query string diff
   var qaMap={},qbMap={};
-  if(pA.queryString)pA.queryString.split('&').forEach(function(p){var kv=p.split('=');if(kv[0])qaMap[kv[0]]=kv[1]||'';});
-  if(pB.queryString)pB.queryString.split('&').forEach(function(p){var kv=p.split('=');if(kv[0])qbMap[kv[0]]=kv[1]||'';});
+  if(pA.queryString)pA.queryString.split('&').forEach(function(p){var ei=p.indexOf('=');if(ei>0)qaMap[p.slice(0,ei)]=p.slice(ei+1);});
+  if(pB.queryString)pB.queryString.split('&').forEach(function(p){var ei=p.indexOf('=');if(ei>0)qbMap[p.slice(0,ei)]=p.slice(ei+1);});
   [...new Set([...Object.keys(qaMap),...Object.keys(qbMap)])].forEach(function(k){if(qaMap[k]!==qbMap[k]){findings.push({type:'query',label:'Query: '+k,a:qaMap[k]||'(absent)',b:qbMap[k]||'(absent)'});if(/id|user|account|doc|order/i.test(k))idor.push('🎯 IDOR — "'+k+'": '+qaMap[k]+' ↔ '+qbMap[k]);}});
+  // Header diff
   ['authorization','cookie','x-user-id','x-account-id','x-api-key'].forEach(function(h){if((pA.headers[h]||'')!==(pB.headers[h]||'')){findings.push({type:'header',label:'Header: '+h,a:(pA.headers[h]||'(absent)').slice(0,60),b:(pB.headers[h]||'(absent)').slice(0,60)});if(h==='authorization'||h==='cookie')idor.push('🔑 AUTH DIFF — swap sessions to test IDOR');}});
+  // Body param diff — parse both bodies
+  function _parseBodyParams(p){var m={};if(!p.body)return m;var ct=(p.contentType||'').toLowerCase();if(ct.includes('json')||p.body.trim().startsWith('{')){try{var obj=JSON.parse(p.body);function flat(o,pre){Object.entries(o).forEach(function(kv){var k=pre?pre+'.'+kv[0]:kv[0];if(kv[1]&&typeof kv[1]==='object')flat(kv[1],k);else m[k]=String(kv[1]);});}flat(obj,'');}catch(e){}}else{p.body.split('&').forEach(function(pair){var ei=pair.indexOf('=');if(ei>0){var k=decodeURIComponent(pair.slice(0,ei).replace(/\+/g,' '));var v=decodeURIComponent(pair.slice(ei+1).replace(/\+/g,' '));m[k]=v;}});}return m;}
+  var baMap=_parseBodyParams(pA), bbMap=_parseBodyParams(pB);
+  [...new Set([...Object.keys(baMap),...Object.keys(bbMap)])].forEach(function(k){if(baMap[k]!==bbMap[k]){findings.push({type:'body',label:'Body: '+k,a:baMap[k]||'(absent)',b:bbMap[k]||'(absent)'});if(/id|user|account|doc|order|role|admin/i.test(k))idor.push('🎯 IDOR — body param "'+k+'": '+baMap[k]+' ↔ '+bbMap[k]);}});
   var html='';
   if(idor.length){html+='<div style="background:var(--critical)15;border:1px solid var(--critical)44;border-radius:6px;padding:10px;margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--critical);margin-bottom:6px">⚠️ IDOR Candidates ('+idor.length+')</div>'+idor.map(function(i){return '<div style="font-size:12px;color:var(--text2);margin-bottom:4px">'+escHtml(i)+'</div>';}).join('')+'</div>';}
-  if(findings.length){var tc2={path:'var(--info)',query:'var(--yellow)',header:'var(--accent2)'};html+=findings.map(function(f){return '<div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">'+'<span style="font-size:10px;font-weight:700;color:'+(tc2[f.type]||'var(--text3)')+'">'+escHtml(f.label)+'</span>'+'<code style="font-size:11px;background:var(--critical)15;border-radius:4px;padding:3px 6px;color:var(--critical);word-break:break-all">A: '+escHtml(String(f.a))+'</code>'+'<code style="font-size:11px;background:var(--green)15;border-radius:4px;padding:3px 6px;color:var(--green);word-break:break-all">B: '+escHtml(String(f.b))+'</code></div>';}).join('');}
+  var tc2={path:'var(--info)',query:'var(--yellow)',header:'var(--accent2)',body:'var(--high)'};
+  if(findings.length){html+=findings.map(function(f){return '<div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-size:10px;font-weight:700;color:'+(tc2[f.type]||'var(--text3)')+'">'+escHtml(f.label)+'</span><code style="font-size:11px;background:var(--critical)15;border-radius:4px;padding:3px 6px;color:var(--critical);word-break:break-all">A: '+escHtml(String(f.a))+'</code><code style="font-size:11px;background:var(--green)15;border-radius:4px;padding:3px 6px;color:var(--green);word-break:break-all">B: '+escHtml(String(f.b))+'</code></div>';}).join('');}
   else{html+='<div style="color:var(--green);font-size:13px;padding:10px">✅ Requests are identical — no differences found.</div>';}
   out.innerHTML=html;
-}
 
 // ── Batch Analyzer ──
 function batchAnalyze() {
@@ -4375,22 +4399,26 @@ async function wapCheckKali() {
   if (el) el.textContent = '🔧 checking...';
   try {
     const r = await fetch('/api/kali/status');
+    if (!r.ok) {
+      if (el) { el.textContent = '⚠️ API error ' + r.status; el.style.color = '#fbbf24'; }
+      return;
+    }
     const d = await r.json();
     if (el) {
       if (d.ready) {
         el.style.background = 'rgba(34,197,94,.15)';
         el.style.color = '#4ade80';
-        el.textContent = '✅ Kali ' + (d.wsl_distro || 'Linux') + ' (' + d.tools_found.length + ' tools)';
-        el.title = 'Found: ' + d.tools_found.join(', ') + (d.tools_missing.length ? '\nMissing: ' + d.tools_missing.join(', ') : '');
+        el.textContent = '✅ Kali ' + (d.wsl_distro || 'Linux') + ' (' + (d.tools_found||[]).length + ' tools)';
+        el.title = 'Found: ' + (d.tools_found||[]).join(', ') + ((d.tools_missing||[]).length ? '\nMissing: ' + d.tools_missing.join(', ') : '');
       } else {
         el.style.background = 'rgba(239,68,68,.15)';
         el.style.color = '#f87171';
         el.textContent = '❌ ' + (d.mode === 'windows_no_wsl' ? 'WSL not found' : 'No tools found');
-        el.title = d.message + '\nMissing: ' + d.tools_missing.join(', ');
+        el.title = (d.message||'') + '\nMissing: ' + (d.tools_missing||[]).join(', ');
       }
     }
   } catch(e) {
-    if (el) { el.textContent = '⚠️ backend offline'; el.style.color = '#fbbf24'; }
+    if (el) { el.textContent = '⚠️ server unreachable'; el.style.color = '#fbbf24'; el.title = String(e); }
   }
 }
 // Auto-check on page load
@@ -4957,11 +4985,8 @@ function wapAgClear() {
   _wapAgSession = null; _wapAgRunning = false;
   const btn = document.getElementById('wapAgSendBtn'); if (btn) btn.disabled = false;
   const box = document.getElementById('wapAgMsgs');
-  if (box) box.innerHTML = '<div class="ag-msg-agent">⚡ <b>Agent</b> cleared. Ready.</div>';
+  if (box) box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Session cleared.</div>';
 }
-
-function wapAgRemoveEl(id) { const el = document.getElementById(id); if (el) el.remove(); }
-function wapAgEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 </script>
 </body>
 </html>

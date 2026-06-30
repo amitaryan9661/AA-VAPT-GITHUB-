@@ -1,5 +1,5 @@
 """Ollama AI client — DeepSeek-R1, Gemma, Llama3, Mistral support."""
-import json, logging, re, asyncio, time
+import json, logging, re, asyncio, time, threading
 import ollama as _ollama
 from backend.config import OLLAMA_HOST, OLLAMA_MODEL
 
@@ -7,6 +7,7 @@ from backend.config import OLLAMA_HOST, OLLAMA_MODEL
 _list_cache = None
 _list_cache_ts = 0.0
 _LIST_TTL = 8  # seconds
+_LIST_LOCK = threading.Lock()   # protect _list_cache from concurrent init
 
 log = logging.getLogger("aavapt.ai.ollama")
 _client = _ollama.Client(host=OLLAMA_HOST)
@@ -31,10 +32,11 @@ def _cached_list():
     """Return _client.list() result, cached for _LIST_TTL seconds to avoid startup spam."""
     global _list_cache, _list_cache_ts
     now = time.time()
-    if _list_cache is None or (now - _list_cache_ts) > _LIST_TTL:
-        _list_cache = _client.list()
-        _list_cache_ts = now
-    return _list_cache
+    with _LIST_LOCK:
+        if _list_cache is None or (now - _list_cache_ts) > _LIST_TTL:
+            _list_cache = _client.list()
+            _list_cache_ts = now
+        return _list_cache
 
 def list_models():
     try:
@@ -204,24 +206,32 @@ def chat_with_tools(messages: list, tools: list, model=None) -> dict:
 
 
 def _build_json_prompt(messages: list, tools: list) -> str:
-    """Build a compact single-turn JSON-output prompt."""
+    """Build a compact single-turn JSON-output prompt for models without native tool_calls."""
+    # Group tools by category for readability
     tool_lines = "\n".join(
-        f'  {t["function"]["name"]}: {t["function"].get("description","")[:80]}'
+        f'  {t["function"]["name"]}: {t["function"].get("description","")[:100]}'
         for t in tools
     )
     system_content = next((m["content"] for m in messages if m["role"] == "system"), "")
-    recent = [m for m in messages[-4:] if m["role"] in ("user", "tool")]
-    context = "\n".join(
-        f"[{m['role'].upper()}]: {str(m.get('content',''))[:200]}"
-        for m in recent
-    )
+    # Use last 8 messages for context (enough to track recent steps without overflow)
+    recent = [m for m in messages[-8:] if m["role"] in ("user", "assistant", "tool")]
+    context_parts = []
+    for m in recent:
+        role = m["role"].upper()
+        content = str(m.get("content") or "")[:300]
+        # Summarize tool results to avoid huge observations bloating the prompt
+        if m["role"] == "tool":
+            content = content[:200] + ("…" if len(content) > 200 else "")
+        context_parts.append(f"[{role}]: {content}")
+    context = "\n".join(context_parts)
     return (
-        f"{system_content[:600]}\n\n"
-        f"TOOLS:\n{tool_lines}\n\n"
-        f"CONTEXT:\n{context}\n\n"
-        "JSON only — no markdown:\n"
-        '{"thought":"...","action":"tool_name","action_input":{...}}\n'
-        'Done? {"thought":"done","action":"finish","action_input":{"answer":"..."}}'
+        f"{system_content[:800]}\n\n"
+        f"AVAILABLE TOOLS:\n{tool_lines}\n\n"
+        f"RECENT HISTORY:\n{context}\n\n"
+        "Respond with EXACTLY ONE JSON object (no markdown, no explanation):\n"
+        '{"thought":"your reasoning","action":"tool_name","action_input":{"param":"value"}}\n'
+        "If all tasks are done:\n"
+        '{"thought":"complete","action":"finish","action_input":{"answer":"full summary"}}'
     )
 
 
@@ -247,7 +257,7 @@ def _json_prompt_fallback(messages: list, tools: list, model: str) -> dict:
     resp = _client.chat(
         model=model,
         messages=[{"role": "user", "content": prompt}],
-        options={"temperature": 0.0, "num_predict": 200},
+        options={"temperature": 0.0, "num_predict": 512},
     )
     return _parse_json_response(resp.message.content or "")
 
@@ -260,7 +270,7 @@ async def _json_prompt_fallback_async(messages: list, tools: list,
         _async_client.chat(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            options={"temperature": 0.0, "num_predict": 200},
+            options={"temperature": 0.0, "num_predict": 512},
         ),
         timeout=timeout,
     )
@@ -681,6 +691,5 @@ async def suggest_commands(finding_name, plugin_id, port, service, host, context
             if cleaned:
                 return cleaned
     except Exception as e:
-        log.error("suggest_commands error: %s", e)
-    log.info("Falling back to offline command generator")
+        log.warning("suggest_commands AI failed: %s - using offline fallback", e)
     return offline

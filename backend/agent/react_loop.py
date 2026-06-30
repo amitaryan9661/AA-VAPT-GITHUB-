@@ -19,7 +19,7 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any, AsyncIterator, Callable, Awaitable, Optional
+from typing import Any, Callable, Awaitable, Optional
 
 from backend.agent import tool_registry as registry
 from backend.agent import memory as mem
@@ -41,15 +41,26 @@ AGENT_TIMEOUT = 300  # 5 minutes max per agent run
 # ─────────────────────────────────────────────────────────────
 
 _SYSTEM_PROMPT = """You are AA-VAPT, an expert autonomous penetration testing AI agent running on Kali Linux.
-You have access to real security tools. Use them to scan, enumerate, and find vulnerabilities.
+You have access to REAL security tools that execute against the target. Follow this workflow:
 
-RULES:
-- Always call a tool. Never reply with plain text.
-- Think step by step: start with recon, then enum, then vuln scan, then exploits.
-- Use the "think" tool to reason without running external tools.
-- Use "finish" as the LAST action with a complete summary of all findings.
-- If a tool returns an error, try an alternative tool or approach.
-- Be efficient — avoid repeating the same tool with the same arguments.
+PENTEST METHODOLOGY:
+1. RECON    → nmap_scan (always first), subfinder_scan (if domain)
+2. ENUM     → check_ssl (if 443), ssh_audit (if 22), smb_check (if 445), ftp_check (if 21)
+             → http_headers_check, whatweb_scan (if HTTP found)
+3. WEB SCAN → gobuster_scan or ffuf_scan (find hidden paths), nikto_scan, nuclei_scan
+4. VULN TEST→ xss_test, sqli_test, lfi_test, ssrf_test, cors_test, cmd_injection_test
+5. EXPLOIT  → brute_force_ssh (HITL), sqlmap_scan (HITL), run_metasploit_module (HITL)
+6. ANALYZE  → detect_attack_chains, epss_check (if CVEs found), analyze_finding
+7. REPORT   → generate_report (always last)
+
+STRICT RULES:
+- ALWAYS call a tool. NEVER reply with plain text only.
+- NEVER repeat the same tool+args you already ran.
+- Use "think" tool to reason when planning next steps.
+- Call "finish" ONLY after generating_report or when all tasks are done.
+- If a tool errors, try an alternative or skip it with think+explanation.
+- For web targets: always run whatweb_scan then gobuster_scan then nuclei_scan.
+- Dangerous tools (brute_force_ssh, sqlmap_scan, run_metasploit_module) require human approval.
 
 CURRENT GOAL: {goal}
 TARGET: {target}
@@ -117,37 +128,59 @@ _TOOL_SCHEMAS: list = []  # built lazily on first use
 # Tools grouped by phase — send only relevant subset to LLM each step
 _PHASE_TOOLS = {
     "recon":   ["nmap_scan", "check_ssl", "ssh_audit", "http_headers_check",
-                "smb_check", "ftp_check", "think", "finish"],
-    "vuln":    ["nikto_scan", "http_headers_check", "detect_attack_chains",
-                "epss_check", "search_memory", "think", "finish"],
-    "exploit": ["brute_force_ssh", "run_metasploit_module", "generate_poc_script",
-                "detect_attack_chains", "think", "finish"],
-    "report":  ["generate_report", "executive_summary", "get_loaded_findings",
+                "smb_check", "ftp_check", "subfinder_scan", "whatweb_scan",
                 "think", "finish"],
-    "general": ["nmap_scan", "nikto_scan", "http_headers_check", "check_ssl",
-                "detect_attack_chains", "generate_report", "think", "finish"],
+    "enum":    ["whatweb_scan", "gobuster_scan", "ffuf_scan", "http_headers_check",
+                "check_ssl", "ssh_audit", "smb_check", "ftp_check",
+                "think", "finish"],
+    "vuln":    ["nikto_scan", "nuclei_scan", "http_headers_check",
+                "xss_test", "sqli_test", "lfi_test", "ssrf_test",
+                "cors_test", "cmd_injection_test", "jwt_analyze",
+                "detect_attack_chains", "epss_check", "analyze_finding",
+                "search_memory", "think", "finish"],
+    "exploit": ["brute_force_ssh", "run_metasploit_module", "sqlmap_scan",
+                "generate_poc_script", "detect_attack_chains", "think", "finish"],
+    "report":  ["generate_report", "executive_summary", "get_loaded_findings",
+                "detect_attack_chains", "think", "finish"],
+    "general": ["nmap_scan", "whatweb_scan", "gobuster_scan", "nikto_scan",
+                "nuclei_scan", "http_headers_check", "check_ssl",
+                "xss_test", "sqli_test", "detect_attack_chains",
+                "generate_report", "think", "finish"],
 }
 
 def _select_tools(goal: str, step: int, done_actions: set) -> list:
-    """Return a small relevant subset of tool schemas based on context."""
+    """Return a relevant subset of tool schemas based on context."""
     g = goal.lower()
-    if any(w in g for w in ["nikto","header","web","http","vuln","scan","web"]):
-        phase = "vuln"
+
+    # Full pentest / assessment — return ALL tools so LLM has complete access
+    if any(w in g for w in ["pentest", "vapt", "full", "all", "assessment", "audit all"]):
+        phase = None  # all tools
+
     elif any(w in g for w in ["report","summary","executive"]):
         phase = "report"
-    elif any(w in g for w in ["exploit","metasploit","brute","crack"]):
+    elif any(w in g for w in ["exploit","metasploit","brute","crack","sqlmap"]):
         phase = "exploit"
-    elif any(w in g for w in ["nmap","port","recon","ssh","smb","ssl"]):
+    elif any(w in g for w in ["enum","directory","gobuster","ffuf","whatweb","fingerprint"]):
+        phase = "enum"
+    elif any(w in g for w in ["xss","sqli","lfi","ssrf","cors","inject","vuln","nikto","nuclei"]):
+        phase = "vuln"
+    elif any(w in g for w in ["nmap","port","recon","ssh","smb","ssl","ftp","subdomain"]):
         phase = "recon"
     else:
         phase = "general"
 
-    # After step 3, add report tool if not yet done
-    wanted = set(_PHASE_TOOLS[phase])
-    if step > 3 and "generate_report" not in done_actions:
-        wanted.add("generate_report")
+    if phase is None:
+        # All tools available
+        wanted = {s["function"]["name"] for s in _TOOL_SCHEMAS}
+    else:
+        wanted = set(_PHASE_TOOLS[phase])
 
-    # Filter global schemas to just the wanted ones
+    # Always add generate_report after step 4 if not yet done
+    if step > 4 and "generate_report" not in done_actions:
+        wanted.add("generate_report")
+    # Always include finish and think
+    wanted.update(["think", "finish"])
+
     return [s for s in _TOOL_SCHEMAS if s["function"]["name"] in wanted]
 
 
@@ -204,7 +237,7 @@ async def run_agent(
     final_answer = ""
     done_actions: set = set()          # tracks which tools were called
     done_action_args: list = []        # tracks (action, args_hash) to prevent duplicate calls
-    _agent_start = asyncio.get_event_loop().time()
+    _agent_start = asyncio.get_running_loop().time()
 
     # ── Hardcoded bootstrap steps (LLM-independent) ──────
     _bootstrap = _build_bootstrap_steps(goal, target, raw=user_input)
@@ -214,7 +247,7 @@ async def run_agent(
         step_num += 1
 
         # ── Watchdog: abort if over time limit ────────────
-        elapsed = asyncio.get_event_loop().time() - _agent_start
+        elapsed = asyncio.get_running_loop().time() - _agent_start
         if elapsed > AGENT_TIMEOUT:
             log.warning("Agent watchdog: exceeded %ds — force finishing", AGENT_TIMEOUT)
             break
@@ -224,14 +257,8 @@ async def run_agent(
             action, action_input, thought = _bootstrap.pop(0)
             log.info("Bootstrap step %d: %s", step_num, action)
 
-            # After last bootstrap step, check if this covers full request
-            # For simple single-tool requests, auto-finish after bootstrap
-            if not _bootstrap and _bootstrap_only:
-                g_low = (goal + " " + user_input).lower()
-                _simple = any(w in g_low for w in
-                              ["nikto","ssl","header","smb","ftp","ssh audit"])
-                # Will auto-finish after executing this step (skip LLM)
-                # by breaking the loop after recording observation
+            # After last bootstrap step, auto-finish check happens
+            # at the bottom of the loop (after observation is recorded)
 
         else:
             # ── LLM decides next step ─────────────────────
@@ -519,7 +546,7 @@ async def _dispatch(tool_name: str, args: dict, session_id: str) -> Any:
         for f in findings_store.get_all():
             sev_count[f["severity"]] = sev_count.get(f["severity"], 0) + 1
         return {
-            "total": findings_store.get_all().__len__(),
+            "total": len(findings_store.get_all()),
             "severity_breakdown": sev_count,
             "findings": fdings,
             "filter": sev,
@@ -595,12 +622,53 @@ async def _dispatch(tool_name: str, args: dict, session_id: str) -> Any:
         return {"thought_recorded": args.get("thought", ""), "status": "ok"}
 
     if tool_name == "ask_human":
-        # This is handled via WebSocket — return the question for streaming
         return {
             "question": args.get("question", ""),
             "options": args.get("options", []),
             "note": "Question sent to human operator via WebSocket.",
         }
+
+    # ── Web app attack tools ──────────────────────────────
+    if tool_name == "whatweb_scan":
+        return await kali_tools.whatweb_scan(**_pick(args, ["url", "timeout"]))
+
+    if tool_name == "gobuster_scan":
+        # gobuster_scan(url, mode, wordlist, timeout, proxy) — no extensions/threads params
+        return await kali_tools.gobuster_scan(**_pick(args, ["url", "mode", "wordlist", "timeout", "proxy"]))
+
+    if tool_name == "ffuf_scan":
+        # ffuf_scan(url, wordlist, extensions, timeout, proxy) — no 'method' param
+        return await kali_tools.ffuf_scan(**_pick(args, ["url", "wordlist", "extensions", "timeout", "proxy"]))
+
+    if tool_name == "nuclei_scan":
+        return await kali_tools.nuclei_scan(**_pick(args, ["target", "templates", "timeout"]))
+
+    if tool_name == "subfinder_scan":
+        return await kali_tools.subfinder_scan(**_pick(args, ["domain", "timeout"]))
+
+    if tool_name == "sqlmap_scan":
+        return await kali_tools.sqlmap_scan(**_pick(args, ["url", "data", "level", "timeout"]))
+
+    if tool_name == "xss_test":
+        return await kali_tools.xss_test(**_pick(args, ["url", "param", "proxy"]))
+
+    if tool_name == "sqli_test":
+        return await kali_tools.sqli_test(**_pick(args, ["url", "param", "proxy"]))
+
+    if tool_name == "lfi_test":
+        return await kali_tools.lfi_test(**_pick(args, ["url", "param", "proxy"]))
+
+    if tool_name == "ssrf_test":
+        return await kali_tools.ssrf_test(**_pick(args, ["url", "param", "proxy"]))
+
+    if tool_name == "cors_test":
+        return await kali_tools.cors_misconfiguration_test(**_pick(args, ["url", "proxy"]))
+
+    if tool_name == "cmd_injection_test":
+        return await kali_tools.command_injection_test(**_pick(args, ["url", "param", "proxy"]))
+
+    if tool_name == "jwt_analyze":
+        return await kali_tools.jwt_analyze(**_pick(args, ["token"]))
 
     return {"error": f"Unknown tool: {tool_name}"}
 
@@ -672,21 +740,31 @@ def _build_bootstrap_steps(goal: str, target: str, raw: str = "") -> list:
              f"FTP check on {t} as requested."),
         ]
 
-    # ── Generic / full scan — nmap → http headers → nikto ─────────────
+    # ── Generic / full pentest — comprehensive bootstrap ──────────────
     steps = [
         ("nmap_scan",
          {"target": t, "flags": "-sV -sC --open -T4", "timeout": 120},
-         f"Starting recon — nmap port scan on {t}."),
+         f"Starting recon — full port scan with service detection on {t}."),
         ("http_headers_check",
          {"url": url},
          f"Checking HTTP security headers on {t}."),
+        ("whatweb_scan",
+         {"url": url, "timeout": 30},
+         f"Fingerprinting web technologies on {t}."),
     ]
-    if any(w in g for w in ["full", "all", "pt", "pentest", "web", "vuln"]):
-        steps.append((
-            "nikto_scan",
-            {"url": url, "timeout": 180},
-            f"Running Nikto web vulnerability scan on {t}.",
-        ))
+    if any(w in g for w in ["full", "all", "pentest", "vapt", "web", "vuln",
+                             "scan", "audit", "assess"]):
+        steps += [
+            ("gobuster_scan",
+             {"url": url, "timeout": 120},
+             f"Discovering hidden directories and files on {t}."),
+            ("nikto_scan",
+             {"url": url, "timeout": 180},
+             f"Running Nikto web vulnerability scan on {t}."),
+            ("nuclei_scan",
+             {"target": url, "templates": "cves,misconfiguration", "timeout": 180},
+             f"Running Nuclei CVE and misconfiguration scan on {t}."),
+        ]
     return steps
 
 
@@ -746,120 +824,147 @@ def _auto_record_findings(session_id: str, action: str, obs: Any, target: str):
                 "source": "chain_detection",
                 "chain_id": chain.get("chain_id"),
             })
+    # Nuclei findings
+    if action == "nuclei_scan" and isinstance(obs, dict):
+        for finding in obs.get("findings", [])[:10]:
+            sev = finding.get("severity", "medium").lower()
+            mem.record_finding(session_id, {
+                "name": f"Nuclei: {finding.get('name', finding.get('template_id', 'unknown'))}",
+                "host": obs.get("target", target),
+                "port": str(finding.get("port", "")),
+                "severity": sev if sev in ("critical","high","medium","low","info") else "medium",
+                "source": "nuclei",
+                "cve": finding.get("cve", ""),
+            })
+    # XSS/SQLi/LFI/SSRF/CORS/CMDi findings
+    if action in ("xss_test","sqli_test","lfi_test","ssrf_test","cors_test","cmd_injection_test"):
+        if isinstance(obs, dict) and obs.get("vulnerable"):
+            sev = obs.get("severity", "high")
+            mem.record_finding(session_id, {
+                "name": f"{action.replace('_test','').replace('_',' ').upper()} Vulnerability: {obs.get('url', target)}",
+                "host": target,
+                "port": "",
+                "severity": sev if sev in ("critical","high","medium","low","info") else "high",
+                "source": action,
+                "detail": obs.get("finding", ""),
+            })
+    # SSH audit findings
+    if action == "ssh_audit" and isinstance(obs, dict) and obs.get("issues"):
+        for issue in obs["issues"][:5]:
+            mem.record_finding(session_id, {
+                "name": f"SSH Issue: {issue[:80]}",
+                "host": obs.get("target", target).split(":")[0],
+                "port": str(obs.get("target", ":22").split(":")[-1]) if ":" in str(obs.get("target","")) else "22",
+                "severity": "medium",
+                "source": "ssh_audit",
+            })
+    # Nikto findings
+    if action == "nikto_scan" and isinstance(obs, dict) and obs.get("findings"):
+        for finding in obs["findings"][:10]:
+            mem.record_finding(session_id, {
+                "name": f"Nikto: {finding[:100]}",
+                "host": target,
+                "port": "80",
+                "severity": "medium",
+                "source": "nikto",
+            })
+    # Gobuster / ffuf discovered paths
+    if action in ("gobuster_scan", "ffuf_scan") and isinstance(obs, dict):
+        paths = obs.get("found", obs.get("results", []))
+        interesting = [p for p in paths
+                       if str(p.get("status", 0)) in ("200", "301", "302", "403", "401")][:5]
+        if interesting:
+            names = ", ".join(p.get("path", p.get("url", "?")) for p in interesting[:3])
+            mem.record_finding(session_id, {
+                "name": f"Hidden paths found: {names}",
+                "host": target,
+                "port": "80",
+                "severity": "low",
+                "source": action,
+                "count": len(paths),
+            })
+    # WhatWeb version exposure
+    if action == "whatweb_scan" and isinstance(obs, dict) and obs.get("versions"):
+        versions_str = ", ".join(f"{k} {v}" for k, v in list(obs["versions"].items())[:5])
+        if versions_str:
+            mem.record_finding(session_id, {
+                "name": f"Technology versions exposed: {versions_str}",
+                "host": target,
+                "port": "80",
+                "severity": "info",
+                "source": "whatweb",
+            })
 
 
-def _offline_summary(session_id: str, goal: str, target: str = "") -> str:
-    """Build a summary from tool results without calling LLM — always instant."""
-    sess = mem.get_session(session_id) or {}
-    steps = sess.get("steps", [])
-    findings = sess.get("findings", [])
-    lines = [f"✅ Task complete: {goal}"]
-    if target:
-        lines.append(f"Target: {target}")
-    lines.append(f"Steps executed: {len(steps)}")
-    # Summarize each tool result
-    for s in steps:
-        obs = s.get("observation", {})
-        action = s.get("action", "")
-        if action == "nmap_scan" and isinstance(obs, dict):
-            ports = obs.get("open_ports", [])
-            lines.append(f"\n🔍 nmap: {len(ports)} open ports found")
-            for p in ports[:8]:
-                lines.append(f"  • {p['port']}/{p['proto']} — {p.get('service','')} {p.get('version','')}")
-        elif action == "nikto_scan" and isinstance(obs, dict):
-            fc = obs.get("finding_count", 0)
-            lines.append(f"\n🕷️ nikto: {fc} findings")
-            for f in obs.get("findings", [])[:6]:
-                lines.append(f"  • {str(f)[:100]}")
-        elif action == "http_headers_check" and isinstance(obs, dict):
-            missing = obs.get("missing_security_headers", [])
-            exposed = obs.get("exposed_info_headers", {})
-            lines.append(f"\n📋 HTTP headers: {len(missing)} missing security headers")
-            for h in missing[:5]:
-                lines.append(f"  ⚠ Missing: {h}")
-            for k, v in list(exposed.items())[:3]:
-                lines.append(f"  ⚠ Info leak: {k}: {v}")
-        elif action == "check_ssl" and isinstance(obs, dict):
-            issues = obs.get("issues", [])
-            lines.append(f"\n🔐 SSL: {len(issues)} issues found")
-            for i in issues[:5]:
-                lines.append(f"  • {str(i)[:100]}")
-        elif action == "ssh_audit" and isinstance(obs, dict):
-            issues = obs.get("issues", [])
-            lines.append(f"\n🔑 SSH audit: {len(issues)} weak configs")
-            for i in issues[:5]:
-                lines.append(f"  • {str(i)[:100]}")
-    if findings:
-        lines.append(f"\n📌 Recorded findings: {len(findings)}")
-        sev: dict = {}
-        for f in findings:
-            s_ = f.get("severity", "info")
-            sev[s_] = sev.get(s_, 0) + 1
-        for s_, c in sorted(sev.items()):
-            lines.append(f"  [{s_.upper()}]: {c}")
-    return "\n".join(lines)
-
-
-async def _auto_summarize(session_id: str, goal: str) -> str:
-    """Generate summary — offline first, LLM only if available and fast."""
-    # Always build offline summary first (instant, no LLM)
-    offline = _offline_summary(session_id, goal)
-    if not ai.is_ollama_running():
-        return offline
-    # Try LLM for richer summary — timeout 30s, don't block on failure
-    sess = mem.get_session(session_id) or {}
-    ctx = (f"Goal: {goal}\n"
-           f"Steps: {len(sess.get('steps',[]))}\n"
-           f"Findings: {json.dumps(sess.get('findings',[])[:8], ensure_ascii=False)}\n\n"
-           f"Raw summary:\n{offline}")
-    try:
-        llm_summary = await asyncio.wait_for(
-            ai.chat_finding("Enhance this pentest summary with remediation advice.", ctx),
-            timeout=30,
-        )
-        return llm_summary if llm_summary else offline
-    except Exception:
-        return offline  # LLM failed — offline summary is fine
-
+# ─────────────────────────────────────────────────────────────
+#  Report builder
+# ─────────────────────────────────────────────────────────────
 
 def _build_markdown_report(sess: dict, findings: list, chains: dict,
-                             summary: str, scan_name: str) -> str:
-    import json as _json
-    from datetime import datetime
+                            summary: str, scan_name: str = "VAPT Report") -> str:
+    """Build a markdown pentest report from session + findings + chains."""
+    from datetime import datetime as _dt
+
+    sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    sorted_f = sorted(findings, key=lambda x: sev_order.get(x.get("severity","info"), 5))
+
+    # Count by severity
+    counts = {}
+    for f in findings:
+        s = f.get("severity", "info")
+        counts[s] = counts.get(s, 0) + 1
+
     lines = [
         f"# {scan_name}",
-        f"**Date:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
+        f"**Generated:** {_dt.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
         f"**Target:** {sess.get('target', 'N/A')}",
         f"**Goal:** {sess.get('goal', 'N/A')}",
         "",
         "---",
-        "## Executive Summary",
-        summary or "No AI summary available.",
         "",
-        "## Severity Breakdown",
+        "## Executive Summary",
+        "",
+        summary or "_No AI summary available — Ollama not running._",
+        "",
+        "### Severity Breakdown",
+        "",
+        f"| Severity | Count |",
+        f"|----------|-------|",
     ]
-    sev_count: dict = {}
-    for f in findings:
-        sev_count[f.get("severity","info")] = sev_count.get(f.get("severity","info"),0) + 1
-    for sev, count in sorted(sev_count.items()):
-        lines.append(f"- **{sev.upper()}**: {count}")
-    lines.extend(["", "## Findings"])
-    for f in findings[:100]:
-        lines.append(
-            f"### [{f.get('severity','?').upper()}] {f.get('name','Unknown')}\n"
-            f"- **Host:** {f.get('host','?')} **Port:** {f.get('port','?')}\n"
-            f"- **Service:** {f.get('service','?')}\n"
-            f"- **Synopsis:** {f.get('synopsis','')[:200]}\n"
-        )
+    for sev in ("critical", "high", "medium", "low", "info"):
+        if counts.get(sev, 0):
+            lines.append(f"| {sev.capitalize()} | {counts[sev]} |")
+
+    lines += ["", "---", "", "## Findings", ""]
+
+    for i, f in enumerate(sorted_f[:50], 1):
+        lines.append(f"### {i}. {f.get('name', 'Unknown Finding')}")
+        lines.append(f"- **Severity:** {f.get('severity', 'info').upper()}")
+        lines.append(f"- **Host:** {f.get('host', 'N/A')}  **Port:** {f.get('port', 'N/A')}")
+        if f.get("source"):
+            lines.append(f"- **Source:** {f['source']}")
+        if f.get("detail"):
+            lines.append(f"- **Detail:** {str(f['detail'])[:300]}")
+        lines.append("")
+
+    # Attack chains
     chain_list = chains.get("chains", []) if isinstance(chains, dict) else []
     if chain_list:
-        lines.extend(["", "## Attack Chains Detected"])
-        for c in chain_list:
-            lines.append(
-                f"### [{c.get('upgraded_risk','?')}] {c.get('name','?')}\n"
-                f"- **Chain ID:** {c.get('chain_id','?')}\n"
-                f"- **MITRE:** {', '.join(c.get('mitre',[]))}\n"
-                f"- **Steps:** {len(c.get('steps',[]))}\n"
-            )
-    lines.extend(["", "---", "*Generated by AA-VAPT Agent v2.1.0*"])
+        lines += ["---", "", "## Attack Chains", ""]
+        for c in chain_list[:10]:
+            lines.append(f"### {c.get('name', 'Unknown Chain')}")
+            lines.append(f"- **Risk:** {c.get('upgraded_risk', 'HIGH')}")
+            lines.append(f"- **Steps:** {' → '.join(c.get('steps', []))}")
+            if c.get("description"):
+                lines.append(f"- **Description:** {c['description']}")
+            lines.append("")
+
+    lines += ["---", "", "## Recommendations", "",
+              "1. Patch all Critical and High severity findings immediately.",
+              "2. Review Medium severity findings within 30 days.",
+              "3. Re-test after remediation to verify fixes.",
+              "4. Implement network segmentation to limit lateral movement.",
+              "5. Enable logging and alerting on all critical assets.",
+              ""]
+
     return "\n".join(lines)
