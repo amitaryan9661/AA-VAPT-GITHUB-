@@ -2156,7 +2156,7 @@ function showPanel(name) {
   document.querySelector(`.sidebar-item[data-panel="${name}"]`)?.classList.add('active');
 
   const kbdHint = document.getElementById('kbd-hint');
-  kbdHint.style.display = name === 'testing' ? 'flex' : 'none';
+  if(kbdHint) kbdHint.style.display = name === 'testing' ? 'flex' : 'none';
 
   if (name === 'checklist') renderChecklist();
   if (name === 'findings') renderFindings();
@@ -2602,32 +2602,33 @@ async function detectBurpMode() {
     const label = document.getElementById('burp-mode-label');
     state.burpMode = res.mode;
     if (res.mode === 'PRO_AUTO') {
-      dot.className = 'burp-dot pro';
-      label.textContent = 'Burp Pro';
-      document.getElementById('mode-pro').classList.add('selected');
-      document.getElementById('mode-manual').classList.remove('selected');
+      if(dot) dot.className = 'burp-dot pro';
+      if(label) label.textContent = 'Burp Pro';
+      var mpro = document.getElementById('mode-pro'); if(mpro) mpro.classList.add('selected');
+      var mman = document.getElementById('mode-manual'); if(mman) mman.classList.remove('selected');
     } else if (res.mode === 'COMMUNITY') {
-      dot.className = 'burp-dot community';
-      label.textContent = 'Burp Community';
-      document.getElementById('mode-community').classList.add('selected');
-      document.getElementById('mode-manual').classList.remove('selected');
+      if(dot) dot.className = 'burp-dot community';
+      if(label) label.textContent = 'Burp Community';
+      var mcom = document.getElementById('mode-community'); if(mcom) mcom.classList.add('selected');
+      var mman2 = document.getElementById('mode-manual'); if(mman2) mman2.classList.remove('selected');
     } else {
-      dot.className = 'burp-dot manual';
-      label.textContent = 'Manual Mode';
+      if(dot) dot.className = 'burp-dot manual';
+      if(label) label.textContent = 'Manual Mode';
     }
   } catch(e) {
-    document.getElementById('burp-mode-label').textContent = 'Backend Offline';
+    var lbl = document.getElementById('burp-mode-label'); if(lbl) lbl.textContent = 'Backend Offline';
   }
 }
 
 function selectBurpMode(mode) {
   state.burpMode = mode;
-  ['pro','community','manual'].forEach(m =>
-    document.getElementById('mode-'+m).classList.remove('selected'));
+  ['pro','community','manual'].forEach(m => {
+    var el = document.getElementById('mode-'+m); if(el) el.classList.remove('selected');
+  });
   const modeMap = {PRO_AUTO:'pro', COMMUNITY:'community', MANUAL:'manual'};
-  document.getElementById('mode-' + modeMap[mode]).classList.add('selected');
-  document.getElementById('burp-pro-section').style.display = mode === 'PRO_AUTO' ? 'block' : 'none';
-  document.getElementById('burp-manual-section').style.display = mode !== 'PRO_AUTO' ? 'block' : 'none';
+  var selEl = document.getElementById('mode-' + modeMap[mode]); if(selEl) selEl.classList.add('selected');
+  var bps = document.getElementById('burp-pro-section'); if(bps) bps.style.display = mode === 'PRO_AUTO' ? 'block' : 'none';
+  var bms = document.getElementById('burp-manual-section'); if(bms) bms.style.display = mode !== 'PRO_AUTO' ? 'block' : 'none';
 }
 
 async function saveBurpKey() {
@@ -2643,7 +2644,7 @@ async function startBurpScan() {
   try {
     const res = await apiPost('/api/burp/start-scan', { target_url: url });
     state.burpScanId = res.scan_id;
-    document.getElementById('burp-scan-status').textContent = `Scan started: ${res.scan_id}`;
+    var bss = document.getElementById('burp-scan-status'); if(bss) bss.textContent = `Scan started: ${res.scan_id}`;
     toast('Burp Pro scan started');
     pollBurpScan();
   } catch(e) { toast('Scan error: ' + e.message, true); }
@@ -2653,8 +2654,8 @@ async function pollBurpScan() {
   if (!state.burpScanId) return;
   try {
     const res = await apiFetch(`/api/burp/scan-status/${state.burpScanId}`);
-    document.getElementById('burp-scan-status').textContent =
-      `Status: ${res.status} | Progress: ${res.progress} | Issues: ${res.issue_count}`;
+    var bss = document.getElementById('burp-scan-status');
+    if(bss) bss.textContent = `Status: ${res.status} | Progress: ${res.progress} | Issues: ${res.issue_count}`;
     if (res.status !== 'succeeded' && res.status !== 'failed') {
       setTimeout(pollBurpScan, 5000);
     }
@@ -2894,7 +2895,7 @@ const _TC_TEMPLATES = {
     expected_vuln:'Access granted to restricted endpoint after adding spoofed IP header',expected_safe:'Header ignored, IP check uses socket IP only' },
   'XPath Injection': { wstg:'WSTG-INPV-09', severity:'high', cwe:'CWE-643', h1:80,
     payloads:["' or '1'='1","' or 1=1 or ''='","x' or name()='username' or 'x'='y","'] | //* | //a['","admin' or '1'='1"],
-    steps:['Step 1 — Probe: Inject single quote. XML/XPath error indicates injectable.','Step 2 — Boolean test: Try `' or '1'='1` vs `' or '1'='2` — different responses = injectable.','Step 3 — Extract data: Use XPath axes: `'] | //* | //a['` to dump all nodes.','Step 4 — Blind: Use substring/string-length for character-by-character extraction.'],
+    steps:['Step 1 — Probe: Inject single quote. XML/XPath error indicates injectable.',"Step 2 — Boolean test: Try `' or '1'='1` vs `' or '1'='2` — different responses = injectable.","Step 3 — Extract data: Use XPath axes: `'] | //* | //a['` to dump all nodes.",'Step 4 — Blind: Use substring/string-length for character-by-character extraction.'],
     expected_vuln:'XPath error or different responses for true/false conditions',expected_safe:'Input sanitized, no XPath error' },
   'IP Spoofing': { wstg:'WSTG-ATHN-01', severity:'medium', cwe:'CWE-287', h1:220,
     payloads:['X-Forwarded-For: 127.0.0.1','X-Real-IP: 127.0.0.1','X-Originating-IP: 127.0.0.1','True-Client-IP: 127.0.0.1','CF-Connecting-IP: 127.0.0.1'],
@@ -3648,6 +3649,7 @@ function idorCompare() {
   if(findings.length){html+=findings.map(function(f){return '<div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-size:10px;font-weight:700;color:'+(tc2[f.type]||'var(--text3)')+'">'+escHtml(f.label)+'</span><code style="font-size:11px;background:var(--critical)15;border-radius:4px;padding:3px 6px;color:var(--critical);word-break:break-all">A: '+escHtml(String(f.a))+'</code><code style="font-size:11px;background:var(--green)15;border-radius:4px;padding:3px 6px;color:var(--green);word-break:break-all">B: '+escHtml(String(f.b))+'</code></div>';}).join('');}
   else{html+='<div style="color:var(--green);font-size:13px;padding:10px">✅ Requests are identical — no differences found.</div>';}
   out.innerHTML=html;
+}
 
 // ── Batch Analyzer ──
 function batchAnalyze() {
